@@ -1,0 +1,14 @@
+mavros_router:
+  ros__parameters: {}
+
+mavros_node:
+  ros__parameters:
+    fcu_url: udp://:14540@
+    gcs_url: tcp-l://:5670
+
+mavros/odometry:
+  ros__parameters:
+    fcu:
+      odom_child_id_des: base_link
+      odom_parent_id_des: map
+    use_sim_time: false
