@@ -96,6 +96,9 @@ public:
                                                                            }
                                                                        });
 
+        wind_state_publisher_ =
+            this->create_publisher<soaring_interface::msg::WindState>("/wind_state", 10);
+
         wind_sub_ =
             this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>("/mavros/wind_estimation", sensor_qos,
                                                                                       [this](const geometry_msgs::msg::TwistWithCovarianceStamped::UniquePtr msg)
