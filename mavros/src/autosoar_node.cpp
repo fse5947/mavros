@@ -103,9 +103,9 @@ public:
             this->create_subscription<soaring_interface::msg::AirspeedFlapsCommand>("/airspeed_flaps_command", 10, [this](const soaring_interface::msg::AirspeedFlapsCommand::UniquePtr msg)
                                                                                     {
             RCLCPP_INFO(rclcpp::get_logger("PX4_COM"), "Received new airspeed setpoint from Autosoar");
-            airspd_cmd = (double)msg->v_ias; 
-            param_set_succ = this->set_parameter("FW_AIRSPD_TRIM", airspd_cmd);
-            std::cout << param_set_succ << std::endl; });
+            airspd_cmd = (double)msg->v_ias;
+            this->set_parameter("FW_AIRSPD_TRIM", airspd_cmd); });
+        // std::cout << param_set_succ << std::endl; });
 
         auto timer_callback = [this]() -> void
         {
@@ -129,7 +129,7 @@ private:
 
     void publish_aircraft_state() const;
     void publish_wind_state(float wind_north, float wind_east) const;
-    bool set_parameter(const char *param_id, double param_value);
+    void set_parameter(const char *param_id, double param_value);
 
     float i_airspeed, lat, lon, alt, throttle, velocity_x, velocity_y, velocity_z;
     float accel_x, accel_y, accel_z, omega_x, omega_y, omega_z;
@@ -175,10 +175,9 @@ void AUTOSOAR_COM::publish_wind_state(float wind_north, float wind_east) const
     wind_state_publisher_->publish(wind_msg);
 }
 
-bool AUTOSOAR_COM::set_parameter(const char *param_id, double param_value)
+void AUTOSOAR_COM::set_parameter(const char *param_id, double param_value)
 {
-    auto lg = get_logger();
-    bool set_param_result = false;
+    // bool set_param_result = false;
     auto param_client_ = this->create_client<mavros_msgs::srv::ParamSetV2>("/mavros/param/set");
 
     auto param_request = std::make_shared<mavros_msgs::srv::ParamSetV2::Request>();
@@ -189,15 +188,24 @@ bool AUTOSOAR_COM::set_parameter(const char *param_id, double param_value)
     auto set_param_future = param_client_->async_send_request(param_request);
     const auto future_status = set_param_future.wait_for(1s);
 
-    auto response = set_param_future.get();
-    set_param_result = response->success;
+    if (future_status == std::future_status::ready)
+    {
+        auto set_param_result = set_param_future.get()->success;
+    }
+    // set_param_result = set_param_response->success;
+    // auto set_param_future = param_client_->async_send_request(param_request);
+    // const auto future_status = set_param_future.wait_for(1s);
+
+    // auto response = set_param_future.get();
+    // set_param_result = response->success;
     // if (future_status == std::future_status::ready)
     // {
     //     auto response = set_param_future.get();
     //     set_param_result = response->success;
     // }
 
-    return set_param_result;
+    // return set_param_result;
+    return;
 }
 
 int main(int argc, char *argv[])
