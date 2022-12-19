@@ -15,11 +15,15 @@
 #include <soaring_interface/msg/airspeed_flaps_command.hpp>
 #include "mavros_msgs/srv/param_set_v2.hpp"
 #include "mavros_msgs/srv/command_long.hpp"
+#include "mavros_msgs/msg/command_code.hpp"
 #include <soaring_interface/msg/aircraft_configuration.hpp>
 #include "mavros_msgs/msg/rc_in.hpp"
 #include <soaring_interface/msg/ground_control_command.hpp>
 #include <soaring_interface/msg/waypoint_vector.hpp>
 #include <soaring_interface/msg/waypoint.hpp>
+#include "mavros_msgs/srv/waypoint_push.hpp"
+#include "mavros_msgs/msg/waypoint.hpp"
+#include "mavros_msgs/msg/waypoint_reached.hpp"
 
 #include <chrono>
 #include <cstdlib>
@@ -35,6 +39,7 @@ public:
     {
 
         auto sensor_qos = rclcpp::SensorDataQoS();
+        auto wp_qos = rclcpp::QoS(10).transient_local();
 
         aircraft_state_publisher_ =
             this->create_publisher<soaring_interface::msg::AircraftState>("/aircraft_state", 10);
@@ -111,7 +116,7 @@ public:
                 {
                 RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"), "Received new airspeed setpoint from Autosoar");
                 airspd_cmd = msg->v_ias;
-                this->send_mav_command(178, 0.0f, airspd_cmd, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); });
+                this->send_mav_command(mavros_msgs::msg::CommandCode::DO_CHANGE_SPEED, 0.0f, airspd_cmd, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); });
 
         aircraft_config_sub_ =
             this->create_subscription<soaring_interface::msg::AircraftConfiguration>(
@@ -165,20 +170,39 @@ public:
             this->create_subscription<soaring_interface::msg::WaypointVector>(
                 "/flight_plan", 10, [this](const soaring_interface::msg::WaypointVector::UniquePtr msg)
                 {
+                // this->set_mav_parameter("RTL_TYPE", 0); % NEED TO FIX PARAM TYPE
                 num_waypoints = (int) msg->n_waypoints;
-                RCLCPP_INFO(rclcpp::get_logger("PX4_COM"), "Received new flight plan from Autosoar with %i waypoints", num_waypoints);
+                RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"), "Received new flight plan from Autosoar with %i waypoints", num_waypoints);
                 flight_path_waypoints.clear();
                 for (int i = 0; i < num_waypoints; i++){
-                    WP point;
-                    point.longitude = msg->waypoints[i].position.longitude;
-                    point.latitude = msg->waypoints[i].position.latitude;
-                    point.altitude = msg->waypoints[i].position.altitude;
-                    point.orb_radius = msg->waypoints[i].radius_orbit;
-                    flight_path_waypoints.push_back(point);
-                    waypoint_publisher_->publish(msg->waypoints[i]);
+                    mavros_msgs::msg::Waypoint waypoint;
+                    if (i == 0){
+                        waypoint.is_current = 1;
+                    }
+                    if (i == num_waypoints - 1){
+                        waypoint.command = 17;
+                        waypoint.param3 = msg->waypoints[i].radius_orbit;
+                    } else {
+                        waypoint.command = 16;
+                    }
+                    waypoint.command = 16;
+                    waypoint.autocontinue = 1;
+                    waypoint.x_lat = msg->waypoints[i].position.latitude;
+                    waypoint.y_long = msg->waypoints[i].position.longitude;
+                    waypoint.z_alt = msg->waypoints[i].position.altitude;
+                    if (i == 0){
+                        waypoint.is_current = 1;
+                    } else if (i == num_waypoints - 1){
+                        waypoint.command = 17;
+                    }
+                    flight_path_waypoints.push_back(waypoint);
                 }
-                Waypoints_set = false;
-                current_waypoint = 0; });
+                this->push_mav_waypoints(flight_path_waypoints); });
+
+        waypoint_reached_sub_ = this->create_subscription<mavros_msgs::msg::WaypointReached>(
+            "/mavros/mission/reached", wp_qos, [this](const mavros_msgs::msg::WaypointReached::UniquePtr msg)
+            { RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"),
+                          "Reached waypoint %i", msg->wp_seq); });
 
         auto timer_callback = [this]() -> void
         {
@@ -203,6 +227,7 @@ private:
     rclcpp::Publisher<soaring_interface::msg::GroundControlCommand>::SharedPtr ground_command_publisher_;
     rclcpp::Subscription<soaring_interface::msg::WaypointVector>::SharedPtr waypoint_sub_;
     rclcpp::Publisher<soaring_interface::msg::Waypoint>::SharedPtr waypoint_publisher_;
+    rclcpp::Subscription<mavros_msgs::msg::WaypointReached>::SharedPtr waypoint_reached_sub_;
 
     void publish_aircraft_state() const;
     void publish_wind_state(float wind_north, float wind_east) const;
@@ -211,23 +236,20 @@ private:
                           float param4, float param5, float param6, float param7);
     void publish_ground_command(uint8_t system_state, uint8_t thermalling_state) const;
 
-    float i_airspeed, lat, lon, alt, throttle, velocity_x, velocity_y, velocity_z;
-    float accel_x, accel_y, accel_z, omega_x, omega_y, omega_z, airspd_cmd;
+    float i_airspeed, airspd_cmd;
+    float lat, lon, alt;
+    float throttle;
+    float velocity_x, velocity_y, velocity_z;
+    float accel_x, accel_y, accel_z;
+    float omega_x, omega_y, omega_z;
     double euler[3], omega[3];
     tf2::Vector3 omega_FRD, accel_FRD;
-    bool motor_set;
-    int num_waypoints;
-    int current_waypoint;
-    struct WP
-    {
-        float longitude;
-        float latitude;
-        float altitude;
-        float orb_radius = 0.0;
-    };
 
-    std::vector<WP> flight_path_waypoints;
-    bool Waypoints_set = true;
+    bool motor_set;
+
+    int num_waypoints;
+    std::vector<mavros_msgs::msg::Waypoint> flight_path_waypoints;
+    void push_mav_waypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path);
 
     enum AUTOSOAR_MODE
     {
@@ -362,6 +384,28 @@ void AUTOSOAR_COM::send_mav_command(uint16_t command_id, float param1 = 0.0, flo
     cmdrq->param5 = param5;
     cmdrq->param6 = param6;
     cmdrq->param7 = param7;
+
+    auto future = client->async_send_request(cmdrq);
+    const auto future_status = future.wait_for(1s);
+    if (future_status == std::future_status::ready)
+    {
+        auto response = future.get();
+        res->success = response->success;
+    }
+    else
+    {
+        RCLCPP_WARN(get_logger(), "Mav command service not ready");
+    }
+}
+
+void AUTOSOAR_COM::push_mav_waypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path)
+{
+    mavros_msgs::srv::WaypointPush::Response::SharedPtr res;
+    auto client = this->create_client<mavros_msgs::srv::WaypointPush>("/mavros/mission/push");
+
+    auto cmdrq = std::make_shared<mavros_msgs::srv::WaypointPush::Request>();
+
+    cmdrq->waypoints = flight_path;
 
     auto future = client->async_send_request(cmdrq);
     const auto future_status = future.wait_for(1s);
