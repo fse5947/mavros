@@ -158,6 +158,10 @@ public:
                 }
                 
                 if (autosoar_state != previous_autosoar_state || thermalling_state != previous_thermalling_state){
+                    if (autosoar_state == AUTOSOAR_MODE_SAFE || autosoar_state == AUTOSOAR_MODE_ACTIVE){
+                        this->set_mav_parameter("RTL_TYPE", 0);
+                        this->send_mav_command(mavros_msgs::msg::CommandCode::DO_SET_MODE, 4.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+                    }
                     publish_ground_command(autosoar_state, thermalling_state);
                     previous_autosoar_state = autosoar_state;
                     previous_thermalling_state = thermalling_state;
@@ -170,7 +174,6 @@ public:
             this->create_subscription<soaring_interface::msg::WaypointVector>(
                 "/flight_plan", 10, [this](const soaring_interface::msg::WaypointVector::UniquePtr msg)
                 {
-                this->set_mav_parameter("RTL_TYPE", 0);
                 num_waypoints = (int) msg->n_waypoints;
                 RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"), "Received new flight plan from Autosoar with %i waypoints", num_waypoints);
                 flight_path_waypoints.clear();
@@ -453,12 +456,10 @@ void AUTOSOAR_COM::push_mav_waypoints(std::vector<mavros_msgs::msg::Waypoint> fl
 
 int main(int argc, char *argv[])
 {
-    // setvbuf(stdout, NULL, _IONBF, BUFSIZ);
     rclcpp::init(argc, argv);
     auto autosoar_node = std::make_shared<AUTOSOAR_COM>();
     rclcpp::executors::MultiThreadedExecutor executor;
     executor.add_node(autosoar_node);
-    // rclcpp::spin(std::make_shared<AUTOSOAR_COM>());
 
     RCLCPP_INFO(autosoar_node->get_logger(), "Starting autosoar communication node...");
     executor.spin();
