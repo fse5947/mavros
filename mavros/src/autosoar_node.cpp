@@ -1,4 +1,5 @@
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/callback_group.hpp"
 #include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <eigen3/Eigen/Eigen>
@@ -131,8 +132,7 @@ public:
                 {
                     RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"), "Received Gliding command from Autosoar");
                     this->set_mav_parameter("NAV_FW_GLIDE_EN", 1.0);
-                }
-                motor_set = false; });
+                } });
 
         rc_in_sub_ =
             this->create_subscription<mavros_msgs::msg::RCIn>(
@@ -170,7 +170,7 @@ public:
             this->create_subscription<soaring_interface::msg::WaypointVector>(
                 "/flight_plan", 10, [this](const soaring_interface::msg::WaypointVector::UniquePtr msg)
                 {
-                // this->set_mav_parameter("RTL_TYPE", 0); % NEED TO FIX PARAM TYPE
+                this->set_mav_parameter("RTL_TYPE", 0);
                 num_waypoints = (int) msg->n_waypoints;
                 RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"), "Received new flight plan from Autosoar with %i waypoints", num_waypoints);
                 flight_path_waypoints.clear();
@@ -196,6 +196,7 @@ public:
                         waypoint.command = 17;
                     }
                     flight_path_waypoints.push_back(waypoint);
+                    waypoint_publisher_->publish(msg->waypoints[i]);
                 }
                 this->push_mav_waypoints(flight_path_waypoints); });
 
@@ -204,12 +205,22 @@ public:
             { RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"),
                           "Reached waypoint %i", msg->wp_seq); });
 
+        client_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+        timer_cb_group_ = nullptr;
+
+        set_mav_param_client_ = this->create_client<mavros_msgs::srv::ParamSetV2>("/mavros/param/set",
+                                                                                  rmw_qos_profile_services_default, client_cb_group_);
+        send_mav_command_client_ = this->create_client<mavros_msgs::srv::CommandLong>("/mavros/cmd/command",
+                                                                                      rmw_qos_profile_services_default, client_cb_group_);
+        push_mav_waypoints_client_ = this->create_client<mavros_msgs::srv::WaypointPush>("/mavros/mission/push",
+                                                                                         rmw_qos_profile_services_default, client_cb_group_);
+
         auto timer_callback = [this]() -> void
         {
             publish_aircraft_state();
         };
 
-        timer_ = this->create_wall_timer(100ms, timer_callback);
+        timer_ = this->create_wall_timer(100ms, timer_callback, timer_cb_group_);
     }
 
 private:
@@ -229,9 +240,16 @@ private:
     rclcpp::Publisher<soaring_interface::msg::Waypoint>::SharedPtr waypoint_publisher_;
     rclcpp::Subscription<mavros_msgs::msg::WaypointReached>::SharedPtr waypoint_reached_sub_;
 
+    rclcpp::Client<mavros_msgs::srv::ParamSetV2>::SharedPtr set_mav_param_client_;
+    rclcpp::Client<mavros_msgs::srv::CommandLong>::SharedPtr send_mav_command_client_;
+    rclcpp::Client<mavros_msgs::srv::WaypointPush>::SharedPtr push_mav_waypoints_client_;
+
+    rclcpp::callback_group::CallbackGroup::SharedPtr client_cb_group_;
+    rclcpp::callback_group::CallbackGroup::SharedPtr timer_cb_group_;
+
     void publish_aircraft_state() const;
     void publish_wind_state(float wind_north, float wind_east) const;
-    void set_mav_parameter(const char *param_id, double param_value);
+    void set_mav_parameter(const char *param_id, uint8_t param_value);
     void send_mav_command(uint16_t command_id, float param1, float param2, float param3,
                           float param4, float param5, float param6, float param7);
     void publish_ground_command(uint8_t system_state, uint8_t thermalling_state) const;
@@ -244,8 +262,6 @@ private:
     float omega_x, omega_y, omega_z;
     double euler[3], omega[3];
     tf2::Vector3 omega_FRD, accel_FRD;
-
-    bool motor_set;
 
     int num_waypoints;
     std::vector<mavros_msgs::msg::Waypoint> flight_path_waypoints;
@@ -345,26 +361,32 @@ void AUTOSOAR_COM::publish_wind_state(float wind_north, float wind_east) const
     wind_state_publisher_->publish(wind_msg);
 }
 
-void AUTOSOAR_COM::set_mav_parameter(const char *param_id, double param_value)
+void AUTOSOAR_COM::set_mav_parameter(const char *param_id, uint8_t param_value)
 {
-    mavros_msgs::srv::ParamSetV2::Response::SharedPtr res;
-    auto client = this->create_client<mavros_msgs::srv::ParamSetV2>("/mavros/param/set");
 
     auto cmdrq = std::make_shared<mavros_msgs::srv::ParamSetV2::Request>();
     cmdrq->param_id = param_id;
     cmdrq->value.type = 3;
-    cmdrq->value.double_value = param_value;
+    cmdrq->value.integer_value = param_value;
+    cmdrq->value.double_value = double(param_value);
 
-    auto future = client->async_send_request(cmdrq);
-    const auto future_status = future.wait_for(1s);
-    if (future_status == std::future_status::ready)
+    auto result_future = set_mav_param_client_->async_send_request(cmdrq);
+    std::future_status status = result_future.wait_for(1s);
+    if (status == std::future_status::ready)
     {
-        auto response = future.get();
-        res->success = response->success;
+        auto response = result_future.get();
+        if (response->success)
+        {
+            RCLCPP_INFO(this->get_logger(), "Mav Set Param Response Successfull");
+        }
+        else
+        {
+            RCLCPP_INFO(this->get_logger(), "Mav Set Param Service Request Failed");
+        }
     }
     else
     {
-        RCLCPP_WARN(get_logger(), "Set param service not ready");
+        RCLCPP_WARN(get_logger(), "Mav Set Param Service Not Ready");
     }
 }
 
@@ -372,8 +394,6 @@ void AUTOSOAR_COM::send_mav_command(uint16_t command_id, float param1 = 0.0, flo
                                     float param3 = 0.0, float param4 = 0.0, float param5 = 0.0,
                                     float param6 = 0.0, float param7 = 0.0)
 {
-    mavros_msgs::srv::CommandLong::Response::SharedPtr res;
-    auto client = this->create_client<mavros_msgs::srv::CommandLong>("/mavros/cmd/command");
 
     auto cmdrq = std::make_shared<mavros_msgs::srv::CommandLong::Request>();
     cmdrq->command = command_id;
@@ -385,48 +405,64 @@ void AUTOSOAR_COM::send_mav_command(uint16_t command_id, float param1 = 0.0, flo
     cmdrq->param6 = param6;
     cmdrq->param7 = param7;
 
-    auto future = client->async_send_request(cmdrq);
-    const auto future_status = future.wait_for(1s);
+    auto result_future = send_mav_command_client_->async_send_request(cmdrq);
+    std::future_status future_status = result_future.wait_for(1s);
     if (future_status == std::future_status::ready)
     {
-        auto response = future.get();
-        res->success = response->success;
+        auto response = result_future.get();
+        if (response->success)
+        {
+            RCLCPP_INFO(this->get_logger(), "Mav Command Response Successful");
+        }
+        else
+        {
+            RCLCPP_INFO(this->get_logger(), "Mav Command Service Request Failed");
+        }
     }
     else
     {
-        RCLCPP_WARN(get_logger(), "Mav command service not ready");
+        RCLCPP_WARN(get_logger(), "Mav Command Service Not Ready");
     }
 }
 
 void AUTOSOAR_COM::push_mav_waypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path)
 {
-    mavros_msgs::srv::WaypointPush::Response::SharedPtr res;
-    auto client = this->create_client<mavros_msgs::srv::WaypointPush>("/mavros/mission/push");
-
     auto cmdrq = std::make_shared<mavros_msgs::srv::WaypointPush::Request>();
 
     cmdrq->waypoints = flight_path;
 
-    auto future = client->async_send_request(cmdrq);
-    const auto future_status = future.wait_for(1s);
+    auto result_future = push_mav_waypoints_client_->async_send_request(cmdrq);
+    std::future_status future_status = result_future.wait_for(1s);
     if (future_status == std::future_status::ready)
     {
-        auto response = future.get();
-        res->success = response->success;
+        auto response = result_future.get();
+        if (response->success)
+        {
+            RCLCPP_INFO(this->get_logger(), "Push Waypoints to Mav Response Successfull");
+        }
+        else
+        {
+            RCLCPP_INFO(this->get_logger(), "Push Waypoints to Mav Service Request Failed");
+        }
     }
     else
     {
-        RCLCPP_WARN(get_logger(), "Mav command service not ready");
+        RCLCPP_WARN(get_logger(), "Push Waypoints to Mav Service Not Ready");
     }
 }
 
 int main(int argc, char *argv[])
 {
-    std::cout << "Starting autosoar communication node..." << std::endl;
-    setvbuf(stdout, NULL, _IONBF, BUFSIZ);
+    // setvbuf(stdout, NULL, _IONBF, BUFSIZ);
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<AUTOSOAR_COM>());
+    auto autosoar_node = std::make_shared<AUTOSOAR_COM>();
+    rclcpp::executors::MultiThreadedExecutor executor;
+    executor.add_node(autosoar_node);
+    // rclcpp::spin(std::make_shared<AUTOSOAR_COM>());
 
+    RCLCPP_INFO(autosoar_node->get_logger(), "Starting autosoar communication node...");
+    executor.spin();
+    RCLCPP_INFO(autosoar_node->get_logger(), "Keyboard interrupt, shutting down...");
     rclcpp::shutdown();
     return 0;
 }
