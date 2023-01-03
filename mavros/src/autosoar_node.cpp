@@ -20,11 +20,10 @@
 #include <soaring_interface/msg/aircraft_configuration.hpp>
 #include "mavros_msgs/msg/rc_in.hpp"
 #include <soaring_interface/msg/ground_control_command.hpp>
-#include <soaring_interface/msg/waypoint_vector.hpp>
-#include <soaring_interface/msg/waypoint.hpp>
 #include "mavros_msgs/srv/waypoint_push.hpp"
 #include "mavros_msgs/msg/waypoint.hpp"
 #include "mavros_msgs/msg/waypoint_reached.hpp"
+#include <soaring_interface/srv/upload_flight_plan.hpp>
 
 #include <chrono>
 #include <cstdlib>
@@ -167,56 +166,64 @@ public:
                     previous_thermalling_state = thermalling_state;
                 } });
 
-        waypoint_publisher_ =
-            this->create_publisher<soaring_interface::msg::Waypoint>("/waypoint_information", 10);
-
-        waypoint_sub_ =
-            this->create_subscription<soaring_interface::msg::WaypointVector>(
-                "/flight_plan", 10, [this](const soaring_interface::msg::WaypointVector::UniquePtr msg)
-                {
-                num_waypoints = (int) msg->n_waypoints;
+        flight_plan_service_ = this->create_service<soaring_interface::srv::UploadFlightPlan>(
+            "/flight_plan",
+            [this](const std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Request> request,
+                   std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Response> response)
+            {
+                num_waypoints = (int)request->flight_plan.n_waypoints;
                 RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"), "Received new flight plan from Autosoar with %i waypoints", num_waypoints);
                 flight_path_waypoints.clear();
-                for (int i = 0; i < num_waypoints; i++){
+                for (int i = 0; i < num_waypoints; i++)
+                {
                     mavros_msgs::msg::Waypoint waypoint;
-                    if (i == 0){
+                    if (i == 0)
+                    {
                         waypoint.is_current = 1;
                     }
-                    if (i == num_waypoints - 1){
+                    if (i == num_waypoints - 1)
+                    {
                         waypoint.command = 17;
-                        waypoint.param3 = msg->waypoints[i].radius_orbit;
-                    } else {
+                        waypoint.param3 = request->flight_plan.waypoints[i].radius_orbit;
+                    }
+                    else
+                    {
                         waypoint.command = 16;
                     }
                     waypoint.command = 16;
                     waypoint.autocontinue = 1;
-                    waypoint.x_lat = msg->waypoints[i].position.latitude;
-                    waypoint.y_long = msg->waypoints[i].position.longitude;
-                    waypoint.z_alt = msg->waypoints[i].position.altitude;
-                    if (i == 0){
+                    waypoint.x_lat = request->flight_plan.waypoints[i].position.latitude;
+                    waypoint.y_long = request->flight_plan.waypoints[i].position.longitude;
+                    waypoint.z_alt = request->flight_plan.waypoints[i].position.altitude;
+                    if (i == 0)
+                    {
                         waypoint.is_current = 1;
-                    } else if (i == num_waypoints - 1){
+                    }
+                    else if (i == num_waypoints - 1)
+                    {
                         waypoint.command = 17;
                     }
                     flight_path_waypoints.push_back(waypoint);
-                    waypoint_publisher_->publish(msg->waypoints[i]);
                 }
-                this->push_mav_waypoints(flight_path_waypoints); });
+                response->result = true;
+                this->push_mav_waypoints(flight_path_waypoints);
+            },
+            rmw_qos_profile_services_default, service_cb_group_);
 
         waypoint_reached_sub_ = this->create_subscription<mavros_msgs::msg::WaypointReached>(
             "/mavros/mission/reached", wp_qos, [this](const mavros_msgs::msg::WaypointReached::UniquePtr msg)
             { RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"),
                           "Reached waypoint %i", msg->wp_seq); });
 
-        client_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+        service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
         timer_cb_group_ = nullptr;
 
         set_mav_param_client_ = this->create_client<mavros_msgs::srv::ParamSetV2>("/mavros/param/set",
-                                                                                  rmw_qos_profile_services_default, client_cb_group_);
+                                                                                  rmw_qos_profile_services_default, service_cb_group_);
         send_mav_command_client_ = this->create_client<mavros_msgs::srv::CommandLong>("/mavros/cmd/command",
-                                                                                      rmw_qos_profile_services_default, client_cb_group_);
+                                                                                      rmw_qos_profile_services_default, service_cb_group_);
         push_mav_waypoints_client_ = this->create_client<mavros_msgs::srv::WaypointPush>("/mavros/mission/push",
-                                                                                         rmw_qos_profile_services_default, client_cb_group_);
+                                                                                         rmw_qos_profile_services_default, service_cb_group_);
 
         auto timer_callback = [this]() -> void
         {
@@ -239,15 +246,14 @@ private:
     rclcpp::Subscription<soaring_interface::msg::AircraftConfiguration>::SharedPtr aircraft_config_sub_;
     rclcpp::Subscription<mavros_msgs::msg::RCIn>::SharedPtr rc_in_sub_;
     rclcpp::Publisher<soaring_interface::msg::GroundControlCommand>::SharedPtr ground_command_publisher_;
-    rclcpp::Subscription<soaring_interface::msg::WaypointVector>::SharedPtr waypoint_sub_;
-    rclcpp::Publisher<soaring_interface::msg::Waypoint>::SharedPtr waypoint_publisher_;
     rclcpp::Subscription<mavros_msgs::msg::WaypointReached>::SharedPtr waypoint_reached_sub_;
 
     rclcpp::Client<mavros_msgs::srv::ParamSetV2>::SharedPtr set_mav_param_client_;
     rclcpp::Client<mavros_msgs::srv::CommandLong>::SharedPtr send_mav_command_client_;
     rclcpp::Client<mavros_msgs::srv::WaypointPush>::SharedPtr push_mav_waypoints_client_;
+    rclcpp::Service<soaring_interface::srv::UploadFlightPlan>::SharedPtr flight_plan_service_;
 
-    rclcpp::callback_group::CallbackGroup::SharedPtr client_cb_group_;
+    rclcpp::callback_group::CallbackGroup::SharedPtr service_cb_group_;
     rclcpp::callback_group::CallbackGroup::SharedPtr timer_cb_group_;
 
     void publish_aircraft_state() const;
