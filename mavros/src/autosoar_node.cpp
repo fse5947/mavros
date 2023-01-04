@@ -125,12 +125,12 @@ public:
                 if (msg->is_motor_enabled)
                 {
                     RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"), "Received Powered command from Autosoar");
-                    this->set_mav_parameter("NAV_FW_GLIDE_EN", 0.0);
+                    this->set_mav_parameter("NAV_FW_GLIDE_EN", 0, 2);
                 }
                 else
                 {
                     RCLCPP_INFO(rclcpp::get_logger("AUTOSOAR_COM"), "Received Gliding command from Autosoar");
-                    this->set_mav_parameter("NAV_FW_GLIDE_EN", 1.0);
+                    this->set_mav_parameter("NAV_FW_GLIDE_EN", 1, 2);
                 } });
 
         rc_in_sub_ =
@@ -158,7 +158,7 @@ public:
                 
                 if (autosoar_state != previous_autosoar_state || thermalling_state != previous_thermalling_state){
                     if (autosoar_state == AUTOSOAR_MODE_SAFE || autosoar_state == AUTOSOAR_MODE_ACTIVE){
-                        this->set_mav_parameter("RTL_TYPE", 0);
+                        this->set_mav_parameter("RTL_TYPE", 0, 3);
                         this->send_mav_command(mavros_msgs::msg::CommandCode::DO_SET_MODE, 4.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
                     }
                     publish_ground_command(autosoar_state, thermalling_state);
@@ -258,7 +258,7 @@ private:
 
     void publish_aircraft_state() const;
     void publish_wind_state(float wind_north, float wind_east) const;
-    void set_mav_parameter(const char *param_id, uint8_t param_value);
+    void set_mav_parameter(const char *param_id, uint8_t param_value, uint8_t param_type);
     void send_mav_command(uint16_t command_id, float param1, float param2, float param3,
                           float param4, float param5, float param6, float param7);
     void publish_ground_command(uint8_t system_state, uint8_t thermalling_state) const;
@@ -370,12 +370,12 @@ void AUTOSOAR_COM::publish_wind_state(float wind_north, float wind_east) const
     wind_state_publisher_->publish(wind_msg);
 }
 
-void AUTOSOAR_COM::set_mav_parameter(const char *param_id, uint8_t param_value)
+void AUTOSOAR_COM::set_mav_parameter(const char *param_id, uint8_t param_value, uint8_t param_type)
 {
 
     auto cmdrq = std::make_shared<mavros_msgs::srv::ParamSetV2::Request>();
     cmdrq->param_id = param_id;
-    cmdrq->value.type = 3;
+    cmdrq->value.type = param_type;
     cmdrq->value.integer_value = param_value;
     cmdrq->value.double_value = double(param_value);
 
