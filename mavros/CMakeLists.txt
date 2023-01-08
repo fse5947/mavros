@@ -185,9 +185,10 @@ pluginlib_export_plugin_description_file(mavros mavros_plugins.xml)
 add_executable(mavros_node src/mavros_node.cpp)
 target_link_libraries(mavros_node mavros)
 
-add_executable(autosoar_node src/autosoar_node.cpp)
-ament_target_dependencies(autosoar_node soaring_interface rclcpp)
-target_link_libraries(autosoar_node mavros)
+add_executable(smart_guidance_node src/smart_guidance_node.cpp ${CMAKE_CURRENT_SOURCE_DIR}/include/mavros/smart_guidance_node.hpp)
+ament_target_dependencies(smart_guidance_node soaring_interface rclcpp)
+target_include_directories(smart_guidance_node PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/mavros)
+target_link_libraries(smart_guidance_node mavros)
 
 ament_python_install_package(${PROJECT_NAME})
 
@@ -196,7 +197,7 @@ install(PROGRAMS scripts/mav
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(TARGETS mavros mavros_node autosoar_node mavros_plugins
+install(TARGETS mavros mavros_node smart_guidance_node mavros_plugins
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
