@@ -63,7 +63,7 @@
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
 
-  <!-- autosoar packages-->
+  <!-- smart guidance packages-->
   <depend>soaring_interface</depend>
 
   <exec_depend>rosidl_default_runtime</exec_depend>
