@@ -17,146 +17,53 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
     vfr_hud_sub_ =
         this->create_subscription<mavros_msgs::msg::VfrHud>(
             "/mavros/vfr_hud", sensor_qos, [this](const mavros_msgs::msg::VfrHud::SharedPtr msg)
-            {
-                indicated_airspeed_ = msg->airspeed;
-                throttle_ = msg->throttle;
-                alt_ = msg->altitude; });
+            { SmartGuidanceCom::VfrHudCallback(msg); });
 
     global_pose_sub_ =
         this->create_subscription<sensor_msgs::msg::NavSatFix>(
-            "/mavros/global_position/global", sensor_qos, [this](const sensor_msgs::msg::NavSatFix::UniquePtr msg)
-            {
-                lat_ = msg->latitude;
-                lon_ = msg->longitude; });
+            "/mavros/global_position/global", sensor_qos, [this](const sensor_msgs::msg::NavSatFix::SharedPtr msg)
+            { SmartGuidanceCom::GlobalPoseCallback(msg); });
 
     global_twist_sub_ =
         this->create_subscription<nav_msgs::msg::Odometry>(
-            "/mavros/global_position/local", sensor_qos, [this](const nav_msgs::msg::Odometry::UniquePtr msg)
-            {
-                velocity_x_ = msg->twist.twist.linear.x;
-                velocity_y_ = msg->twist.twist.linear.y;
-                velocity_z_ = msg->twist.twist.linear.z; });
+            "/mavros/global_position/local", sensor_qos, [this](const nav_msgs::msg::Odometry::SharedPtr msg)
+            { SmartGuidanceCom::GlobalTwistCallback(msg); });
 
     imu_data_sub_ =
         this->create_subscription<sensor_msgs::msg::Imu>(
-            "/mavros/imu/data", sensor_qos, [this](const sensor_msgs::msg::Imu::UniquePtr msg)
-            {
-                tf2::Quaternion q_FLU_to_ENU;
-                tf2::convert(msg->orientation, q_FLU_to_ENU);
-
-                tf2::Quaternion q_FRD_to_ENU = q_FLU_to_ENU * q_FLU_to_FRD.inverse();
-                tf2::Quaternion q_FRD_to_NED = q_ENU_to_NED * q_FRD_to_ENU;
-
-                tf2::Vector3 accel_FLU{msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z};
-                
-                accel_FRD_ = tf2::quatRotate(q_FLU_to_FRD, accel_FLU);
-                
-                accel_x_ = accel_FRD_[0];
-                accel_y_ = accel_FRD_[1];
-                accel_z_ = accel_FRD_[2];
-
-                tf2::getEulerYPR(q_FRD_to_NED, euler_[2], euler_[1], euler_[0]);
-
-                tf2::Vector3 omega_FLU{msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z};
-
-                omega_FRD_ = tf2::quatRotate(q_FLU_to_FRD, omega_FLU);
-
-                omega_[0] = omega_FRD_[0]; 
-                omega_[1] = omega_FRD_[1];
-                omega_[2] = omega_FRD_[2]; });
+            "/mavros/imu/data", sensor_qos, [this](const sensor_msgs::msg::Imu::SharedPtr msg)
+            { SmartGuidanceCom::ImuDataCallback(msg); });
 
     wind_sub_ =
         this->create_subscription<geometry_msgs::msg::TwistWithCovarianceStamped>(
-            "/mavros/wind_estimation", sensor_qos, [this](const geometry_msgs::msg::TwistWithCovarianceStamped::UniquePtr msg)
-            { PublishWindState(msg->twist.twist.linear.x, msg->twist.twist.linear.y); });
+            "/mavros/wind_estimation", sensor_qos, [this](const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr msg)
+            { SmartGuidanceCom::WindCallback(msg); });
 
     airspd_flap_sub_ =
         this->create_subscription<soaring_interface::msg::AirspeedFlapsCommand>(
-            "/airspeed_flaps_command", 10, [this](const soaring_interface::msg::AirspeedFlapsCommand::UniquePtr msg)
-            {
-                RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received new airspeed setpoint from Smart Guidance");
-                airspd_cmd_ = msg->v_ias;
-                this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_CHANGE_SPEED, 0.0f, airspd_cmd_, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f); });
+            "/airspeed_flaps_command", 10, [this](const soaring_interface::msg::AirspeedFlapsCommand::SharedPtr msg)
+            { SmartGuidanceCom::AirspdFlapCallback(msg); });
 
     aircraft_config_sub_ =
         this->create_subscription<soaring_interface::msg::AircraftConfiguration>(
-            "/aircraft_configuration", 10, [this](const soaring_interface::msg::AircraftConfiguration::UniquePtr msg)
-            {
-                if (msg->is_motor_enabled)
-                {
-                    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received Powered command from Smart Guidance");
-                    this->SetMavParameter("NAV_FW_GLIDE_EN", 0, 2);
-                }
-                else
-                {
-                    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received Gliding command from Smart Guidance");
-                    this->SetMavParameter("NAV_FW_GLIDE_EN", 1, 2);
-                } });
+            "/aircraft_configuration", 10, [this](const soaring_interface::msg::AircraftConfiguration::SharedPtr msg)
+            { SmartGuidanceCom::AircraftConfigCallback(msg); });
 
     rc_in_sub_ =
         this->create_subscription<mavros_msgs::msg::RCIn>(
-            "/mavros/rc/in", 10, [this](const mavros_msgs::msg::RCIn::UniquePtr msg)
-            {
-                uint16_t system_rc_switch = msg->channels[14];
-                uint16_t thermalling_rc_switch = msg->channels[6];
-
-                smart_guidance_state = get_SmartGuidanceState(system_rc_switch);
-				thermalling_state = get_ThermallingState(thermalling_rc_switch);
-                
-                if (smart_guidance_state != previous_smart_guidance_state_ || thermalling_state != previous_thermalling_state_){
-                    if (smart_guidance_state == kSmartGuidanceModeSafe || smart_guidance_state == kSmartGuidanceModeActive){
-                        // Allows a mission to be uploaded without defining a landing waypoint
-                        this->SetMavParameter("RTL_TYPE", 0, 3);
-                        // Change px4 mode to auto (mission)
-                        this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_SET_MODE, 4.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-                    }
-                    PublishGroundCommand(smart_guidance_state, thermalling_state);
-                    previous_smart_guidance_state_ = smart_guidance_state;
-                    previous_thermalling_state_ = thermalling_state;
-                } });
+            "/mavros/rc/in", 10, [this](const mavros_msgs::msg::RCIn::SharedPtr msg)
+            { SmartGuidanceCom::RcInCallback(msg); });
 
     waypoint_reached_sub_ = this->create_subscription<mavros_msgs::msg::WaypointReached>(
-        "/mavros/mission/reached", wp_qos, [this](const mavros_msgs::msg::WaypointReached::UniquePtr msg)
-        { RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"),
-                      "Reached waypoint %i", msg->wp_seq); });
+        "/mavros/mission/reached", wp_qos, [this](const mavros_msgs::msg::WaypointReached::SharedPtr msg)
+        { SmartGuidanceCom::WaypointReachedCallback(msg); });
 
     flight_plan_service_ = this->create_service<soaring_interface::srv::UploadFlightPlan>(
         "/flight_plan",
         [this](const std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Request> request,
                std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Response> response)
-        {
-            num_waypoints_ = (int)request->flight_plan.n_waypoints;
-            RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received new flight plan from Smart Guidance with %i waypoints", num_waypoints_);
-            flight_path_waypoints_.clear();
-
-            for (int i = 0; i < num_waypoints_; i++)
-            {
-                mavros_msgs::msg::Waypoint waypoint;
-
-                waypoint.command = mavros_msgs::msg::CommandCode::NAV_WAYPOINT;
-                waypoint.autocontinue = 1;
-                waypoint.x_lat = request->flight_plan.waypoints[i].position.latitude;
-                waypoint.y_long = request->flight_plan.waypoints[i].position.longitude;
-                waypoint.z_alt = request->flight_plan.waypoints[i].position.altitude;
-                if (i == 0)
-                {
-                    waypoint.is_current = 1;
-                }
-                else if (i == num_waypoints_ - 1)
-                {
-                    waypoint.command = mavros_msgs::msg::CommandCode::NAV_LOITER_UNLIM;
-                    waypoint.param3 = request->flight_plan.waypoints[i].radius_orbit;
-                }
-
-                flight_path_waypoints_.push_back(waypoint);
-            }
-            response->result = true;
-            this->PushMavWaypoints(flight_path_waypoints_);
-        },
+        { SmartGuidanceCom::FlightPlanCallback(request, response); },
         rmw_qos_profile_services_default, service_cb_group_);
-
-    service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
-    timer_cb_group_ = nullptr;
 
     set_mav_param_client_ = this->create_client<mavros_msgs::srv::ParamSetV2>("/mavros/param/set",
                                                                               rmw_qos_profile_services_default, service_cb_group_);
@@ -165,7 +72,13 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
     push_mav_waypoints_client_ = this->create_client<mavros_msgs::srv::WaypointPush>("/mavros/mission/push",
                                                                                      rmw_qos_profile_services_default, service_cb_group_);
 
-    timer_ = this->create_wall_timer(std::chrono::milliseconds(100), std::bind(&SmartGuidanceCom::TimerCallback, this), timer_cb_group_);
+    timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(100), [this]()
+        { SmartGuidanceCom::TimerCallback(); },
+        timer_cb_group_);
+
+    service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+    timer_cb_group_ = nullptr;
 }
 
 void SmartGuidanceCom::PublishAircraftState() const
@@ -243,6 +156,144 @@ void SmartGuidanceCom::PublishWindState(float wind_north, float wind_east) const
     wind_msg.wind_west = wind_east;
 
     wind_state_publisher_->publish(wind_msg);
+}
+
+void SmartGuidanceCom::VfrHudCallback(const mavros_msgs::msg::VfrHud::SharedPtr msg)
+{
+    indicated_airspeed_ = msg->airspeed;
+    throttle_ = msg->throttle;
+    alt_ = msg->altitude;
+}
+
+void SmartGuidanceCom::GlobalPoseCallback(const sensor_msgs::msg::NavSatFix::SharedPtr msg)
+{
+    lat_ = msg->latitude;
+    lon_ = msg->longitude;
+}
+
+void SmartGuidanceCom::GlobalTwistCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
+{
+    velocity_x_ = msg->twist.twist.linear.x;
+    velocity_y_ = msg->twist.twist.linear.y;
+    velocity_z_ = msg->twist.twist.linear.z;
+}
+
+void SmartGuidanceCom::ImuDataCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
+{
+    tf2::Quaternion q_FLU_to_ENU;
+    tf2::convert(msg->orientation, q_FLU_to_ENU);
+
+    tf2::Quaternion q_FRD_to_ENU = q_FLU_to_ENU * q_FLU_to_FRD.inverse();
+    tf2::Quaternion q_FRD_to_NED = q_ENU_to_NED * q_FRD_to_ENU;
+
+    tf2::Vector3 accel_FLU{msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z};
+
+    accel_FRD_ = tf2::quatRotate(q_FLU_to_FRD, accel_FLU);
+
+    accel_x_ = accel_FRD_[0];
+    accel_y_ = accel_FRD_[1];
+    accel_z_ = accel_FRD_[2];
+
+    tf2::getEulerYPR(q_FRD_to_NED, euler_[2], euler_[1], euler_[0]);
+
+    tf2::Vector3 omega_FLU{msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z};
+
+    omega_FRD_ = tf2::quatRotate(q_FLU_to_FRD, omega_FLU);
+
+    omega_[0] = omega_FRD_[0];
+    omega_[1] = omega_FRD_[1];
+    omega_[2] = omega_FRD_[2];
+}
+
+void SmartGuidanceCom::WindCallback(const geometry_msgs::msg::TwistWithCovarianceStamped::SharedPtr msg)
+{
+    PublishWindState(msg->twist.twist.linear.x, msg->twist.twist.linear.y);
+}
+
+void SmartGuidanceCom::AirspdFlapCallback(const soaring_interface::msg::AirspeedFlapsCommand::SharedPtr msg)
+{
+    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received new airspeed setpoint from Smart Guidance");
+    airspd_cmd_ = msg->v_ias;
+    this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_CHANGE_SPEED, 0.0f, airspd_cmd_, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+}
+
+void SmartGuidanceCom::AircraftConfigCallback(const soaring_interface::msg::AircraftConfiguration::SharedPtr msg)
+{
+    if (msg->is_motor_enabled)
+    {
+        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received Powered command from Smart Guidance");
+        this->SetMavParameter("NAV_FW_GLIDE_EN", 0, 2);
+    }
+    else
+    {
+        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received Gliding command from Smart Guidance");
+        this->SetMavParameter("NAV_FW_GLIDE_EN", 1, 2);
+    }
+}
+
+void SmartGuidanceCom::RcInCallback(const mavros_msgs::msg::RCIn::SharedPtr msg)
+{
+    uint16_t system_rc_switch = msg->channels[14];
+    uint16_t thermalling_rc_switch = msg->channels[6];
+
+    smart_guidance_state = get_SmartGuidanceState(system_rc_switch);
+    thermalling_state = get_ThermallingState(thermalling_rc_switch);
+
+    if (smart_guidance_state != previous_smart_guidance_state_ || thermalling_state != previous_thermalling_state_)
+    {
+        if (smart_guidance_state == kSmartGuidanceModeSafe || smart_guidance_state == kSmartGuidanceModeActive)
+        {
+            // Allows a mission to be uploaded without defining a landing waypoint
+            this->SetMavParameter("RTL_TYPE", 0, 3);
+            // Change px4 mode to auto (mission)
+            this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_SET_MODE, 4.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        }
+        PublishGroundCommand(smart_guidance_state, thermalling_state);
+        previous_smart_guidance_state_ = smart_guidance_state;
+        previous_thermalling_state_ = thermalling_state;
+    }
+}
+
+void SmartGuidanceCom::WaypointReachedCallback(const mavros_msgs::msg::WaypointReached::SharedPtr msg)
+{
+    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Reached waypoint %i", msg->wp_seq);
+}
+
+void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Request> request,
+                                          std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Response> response)
+{
+    num_waypoints_ = (int)request->flight_plan.n_waypoints;
+    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received new flight plan from Smart Guidance with %i waypoints", num_waypoints_);
+    flight_path_waypoints_.clear();
+
+    for (int i = 0; i < num_waypoints_; i++)
+    {
+        mavros_msgs::msg::Waypoint waypoint;
+
+        waypoint.command = mavros_msgs::msg::CommandCode::NAV_WAYPOINT;
+        waypoint.autocontinue = 1;
+        waypoint.x_lat = request->flight_plan.waypoints[i].position.latitude;
+        waypoint.y_long = request->flight_plan.waypoints[i].position.longitude;
+        waypoint.z_alt = request->flight_plan.waypoints[i].position.altitude;
+        if (i == 0)
+        {
+            waypoint.is_current = 1;
+        }
+        else if (i == num_waypoints_ - 1)
+        {
+            waypoint.command = mavros_msgs::msg::CommandCode::NAV_LOITER_UNLIM;
+            waypoint.param3 = request->flight_plan.waypoints[i].radius_orbit;
+        }
+
+        flight_path_waypoints_.push_back(waypoint);
+    }
+    response->result = true;
+    this->PushMavWaypoints(flight_path_waypoints_);
+}
+
+void SmartGuidanceCom::TimerCallback()
+{
+    PublishAircraftState();
 }
 
 void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type)
@@ -370,11 +421,6 @@ ThermallingMode SmartGuidanceCom::get_ThermallingState(uint16_t rc_switch)
     {
         return kThermallingDisabled;
     }
-}
-
-void SmartGuidanceCom::TimerCallback()
-{
-    PublishAircraftState();
 }
 
 int main(int argc, char *argv[])
