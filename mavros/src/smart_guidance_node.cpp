@@ -59,7 +59,6 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
         { SmartGuidanceCom::WaypointReachedCallback(msg); });
 
     service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
-    timer_cb_group_ = nullptr;
 
     flight_plan_service_ = this->create_service<soaring_interface::srv::UploadFlightPlan>(
         "/flight_plan",
@@ -74,6 +73,8 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
                                                                                   rmw_qos_profile_services_default, service_cb_group_);
     push_mav_waypoints_client_ = this->create_client<mavros_msgs::srv::WaypointPush>("/mavros/mission/push",
                                                                                      rmw_qos_profile_services_default, service_cb_group_);
+
+    timer_cb_group_ = nullptr;
 
     timer_ = this->create_wall_timer(
         std::chrono::milliseconds(100), [this]()
