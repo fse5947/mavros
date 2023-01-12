@@ -244,7 +244,7 @@ void SmartGuidanceCom::RcInCallback(const mavros_msgs::msg::RCIn::SharedPtr msg)
         if (smart_guidance_state == kSmartGuidanceModeSafe || smart_guidance_state == kSmartGuidanceModeActive)
         {
             // Allows a mission to be uploaded without defining a landing waypoint
-            this->SetMavParameter("RTL_TYPE", 0, 3);
+            this->SetMavParameter("RTL_TYPE", 0, 2);
             // Change px4 mode to auto (mission)
             this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_SET_MODE, 4.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         }
@@ -298,7 +298,6 @@ void SmartGuidanceCom::TimerCallback()
 
 void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type)
 {
-
     auto cmdrq = std::make_shared<mavros_msgs::srv::ParamSetV2::Request>();
     cmdrq->param_id = param_id;
     cmdrq->value.type = param_type;
@@ -309,16 +308,15 @@ void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value
     {
         if (!rclcpp::ok())
         {
-            RCLCPP_ERROR(rclcpp::get_logger("SmartGuidanceCom"), "Process Interrupted.");
+            RCLCPP_ERROR(rclcpp::get_logger("SmartGuidanceCom"), "Process Interrupted");
             return;
         }
         RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Service not Available");
     }
 
     auto result_future = set_mav_param_client_->async_send_request(cmdrq);
-    std::future_status status = result_future.wait_for(std::chrono::seconds(1));
 
-    if (status == std::future_status::ready)
+    if (result_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready)
     {
         auto response = result_future.get();
         if (response->success)
@@ -330,13 +328,16 @@ void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value
             RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Set Param Service Request Failed");
         }
     }
+    else
+    {
+        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Set Param Service Response not Ready");
+    }
 }
 
 void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, float param2 = 0.0,
                                       float param3 = 0.0, float param4 = 0.0, float param5 = 0.0,
                                       float param6 = 0.0, float param7 = 0.0)
 {
-
     auto cmdrq = std::make_shared<mavros_msgs::srv::CommandLong::Request>();
     cmdrq->command = command_id;
     cmdrq->param1 = param1;
@@ -358,9 +359,8 @@ void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, f
     }
 
     auto result_future = send_mav_command_client_->async_send_request(cmdrq);
-    std::future_status future_status = result_future.wait_for(std::chrono::seconds(1));
 
-    if (future_status == std::future_status::ready)
+    if (result_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready)
     {
         auto response = result_future.get();
         if (response->success)
@@ -371,6 +371,10 @@ void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, f
         {
             RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Command Service Request Failed");
         }
+    }
+    else
+    {
+        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Command Service Response not Ready");
     }
 }
 
@@ -391,9 +395,8 @@ void SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> 
     }
 
     auto result_future = push_mav_waypoints_client_->async_send_request(cmdrq);
-    std::future_status future_status = result_future.wait_for(std::chrono::seconds(1));
 
-    if (future_status == std::future_status::ready)
+    if (result_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready)
     {
         auto response = result_future.get();
         if (response->success)
@@ -405,11 +408,14 @@ void SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> 
             RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Push Waypoints to Mav Service Request Failed");
         }
     }
+    else
+    {
+        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Push Waypoints to Mav Response not Ready");
+    }
 }
 
 SmartGuidanceMode SmartGuidanceCom::get_SmartGuidanceState(uint16_t rc_switch)
 {
-
     if (rc_switch > kPwmLowMin && rc_switch < kPwmLowMax)
     {
         return kSmartGuidanceModeDisabled;
