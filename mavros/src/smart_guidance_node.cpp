@@ -276,11 +276,7 @@ void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interfac
         waypoint.x_lat = request->flight_plan.waypoints[i].position.latitude;
         waypoint.y_long = request->flight_plan.waypoints[i].position.longitude;
         waypoint.z_alt = request->flight_plan.waypoints[i].position.altitude;
-        if (i == 0)
-        {
-            waypoint.is_current = 1;
-        }
-        else if (i == num_waypoints_ - 1)
+        if (i == num_waypoints_ - 1)
         {
             waypoint.command = mavros_msgs::msg::CommandCode::NAV_LOITER_UNLIM;
             waypoint.param3 = request->flight_plan.waypoints[i].radius_orbit;
@@ -288,6 +284,9 @@ void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interfac
 
         flight_path_waypoints_.push_back(waypoint);
     }
+
+    flight_path_waypoints_[0].is_current = 1;
+
     response->result = true;
     this->PushMavWaypoints(flight_path_waypoints_);
 }
