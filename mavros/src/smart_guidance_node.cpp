@@ -58,6 +58,9 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
         "/mavros/mission/reached", wp_qos, [this](const mavros_msgs::msg::WaypointReached::SharedPtr msg)
         { SmartGuidanceCom::WaypointReachedCallback(msg); });
 
+    service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+    timer_cb_group_ = nullptr;
+
     flight_plan_service_ = this->create_service<soaring_interface::srv::UploadFlightPlan>(
         "/flight_plan",
         [this](const std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Request> request,
@@ -76,9 +79,6 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
         std::chrono::milliseconds(100), [this]()
         { SmartGuidanceCom::TimerCallback(); },
         timer_cb_group_);
-
-    service_cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
-    timer_cb_group_ = nullptr;
 }
 
 void SmartGuidanceCom::PublishAircraftState() const
@@ -305,8 +305,19 @@ void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value
     cmdrq->value.integer_value = param_value;
     cmdrq->value.double_value = double(param_value);
 
+    while (!set_mav_param_client_->wait_for_service(std::chrono::seconds(1)))
+    {
+        if (!rclcpp::ok())
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("SmartGuidanceCom"), "Process Interrupted.");
+            return;
+        }
+        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Service not Available");
+    }
+
     auto result_future = set_mav_param_client_->async_send_request(cmdrq);
     std::future_status status = result_future.wait_for(std::chrono::seconds(1));
+
     if (status == std::future_status::ready)
     {
         auto response = result_future.get();
@@ -318,10 +329,6 @@ void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value
         {
             RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Set Param Service Request Failed");
         }
-    }
-    else
-    {
-        RCLCPP_WARN(rclcpp::get_logger("SmartGuidanceCom"), "Mav Set Param Service Not Ready");
     }
 }
 
@@ -340,8 +347,19 @@ void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, f
     cmdrq->param6 = param6;
     cmdrq->param7 = param7;
 
+    while (!send_mav_command_client_->wait_for_service(std::chrono::seconds(1)))
+    {
+        if (!rclcpp::ok())
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("SmartGuidanceCom"), "Process Interrupted.");
+            return;
+        }
+        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Service not Available");
+    }
+
     auto result_future = send_mav_command_client_->async_send_request(cmdrq);
     std::future_status future_status = result_future.wait_for(std::chrono::seconds(1));
+
     if (future_status == std::future_status::ready)
     {
         auto response = result_future.get();
@@ -354,10 +372,6 @@ void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, f
             RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Command Service Request Failed");
         }
     }
-    else
-    {
-        RCLCPP_WARN(rclcpp::get_logger("SmartGuidanceCom"), "Mav Command Service Not Ready");
-    }
 }
 
 void SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path)
@@ -366,8 +380,19 @@ void SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> 
 
     cmdrq->waypoints = flight_path;
 
+    while (!push_mav_waypoints_client_->wait_for_service(std::chrono::seconds(1)))
+    {
+        if (!rclcpp::ok())
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("SmartGuidanceCom"), "Process Interrupted.");
+            return;
+        }
+        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Service not Available");
+    }
+
     auto result_future = push_mav_waypoints_client_->async_send_request(cmdrq);
     std::future_status future_status = result_future.wait_for(std::chrono::seconds(1));
+
     if (future_status == std::future_status::ready)
     {
         auto response = result_future.get();
@@ -379,10 +404,6 @@ void SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> 
         {
             RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Push Waypoints to Mav Service Request Failed");
         }
-    }
-    else
-    {
-        RCLCPP_WARN(rclcpp::get_logger("SmartGuidanceCom"), "Push Waypoints to Mav Service Not Ready");
     }
 }
 
