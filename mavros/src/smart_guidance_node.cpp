@@ -247,7 +247,11 @@ void SmartGuidanceCom::RcInCallback(const mavros_msgs::msg::RCIn::SharedPtr msg)
             // Allows a mission to be uploaded without defining a landing waypoint
             this->SetMavParameter("RTL_TYPE", 0, 2);
             // Change px4 mode to auto (mission)
-            this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_SET_MODE, 4.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_SET_MODE, 4.0f);
+        }
+        else if (smart_guidance_state == kSmartGuidanceModeDisabled)
+        {
+            this->SendMavCommand(mavros_msgs::msg::CommandCode::NAV_RETURN_TO_LAUNCH);
         }
         PublishGroundCommand(smart_guidance_state, thermalling_state);
         previous_smart_guidance_state_ = smart_guidance_state;
@@ -281,7 +285,8 @@ void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interfac
             waypoint.command = mavros_msgs::msg::CommandCode::NAV_LOITER_UNLIM;
             waypoint.param3 = request->flight_plan.waypoints[i].radius_orbit;
         }
-
+        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Waypoint %i: Lat: %f, Lon: %f, Alt: %f",
+                    i, waypoint.x_lat, waypoint.y_long, waypoint.z_alt);
         flight_path_waypoints_.push_back(waypoint);
     }
 
@@ -416,7 +421,7 @@ void SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> 
 
 SmartGuidanceMode SmartGuidanceCom::get_SmartGuidanceState(uint16_t rc_switch)
 {
-    if (rc_switch > kPwmLowMin && rc_switch < kPwmLowMax)
+    if (rc_switch >= kPwmLowMin && rc_switch < kPwmLowMax)
     {
         return kSmartGuidanceModeDisabled;
     }
