@@ -215,7 +215,7 @@ void SmartGuidanceCom::AirspdFlapCallback(const soaring_interface::msg::Airspeed
 {
     RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received new airspeed setpoint from Smart Guidance");
     airspd_cmd_ = msg->v_ias;
-    this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_CHANGE_SPEED, 0.0f, airspd_cmd_, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_CHANGE_SPEED, 0.0f, airspd_cmd_);
 }
 
 void SmartGuidanceCom::AircraftConfigCallback(const soaring_interface::msg::AircraftConfiguration::SharedPtr msg)
@@ -268,7 +268,8 @@ void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interfac
                                           std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Response> response)
 {
     num_waypoints_ = (int)request->flight_plan.n_waypoints;
-    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received new flight plan from Smart Guidance with %i waypoints", num_waypoints_);
+    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received new flight plan from Smart Guidance with %i waypoints",
+                num_waypoints_);
     flight_path_waypoints_.clear();
 
     for (int i = 0; i < num_waypoints_; i++)
@@ -381,6 +382,21 @@ void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, f
     {
         RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Command Service Response not Ready");
     }
+}
+
+void SmartGuidanceCom::SendMavCommand(u_int16_t command_id)
+{
+    SendMavCommand(command_id, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+}
+
+void SmartGuidanceCom::SendMavCommand(u_int16_t command_id, float param1)
+{
+    SendMavCommand(command_id, param1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+}
+
+void SmartGuidanceCom::SendMavCommand(u_int16_t command_id, float param1, float param2)
+{
+    SendMavCommand(command_id, param1, param2, 0.0, 0.0, 0.0, 0.0, 0.0);
 }
 
 void SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path)

@@ -78,6 +78,9 @@ private:
     void SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type);
     void SendMavCommand(uint16_t command_id, float param1, float param2, float param3,
                         float param4, float param5, float param6, float param7);
+    void SendMavCommand(uint16_t);
+    void SendMavCommand(uint16_t, float param1);
+    void SendMavCommand(uint16_t, float param1, float param2);
     void PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path);
 
     void VfrHudCallback(const mavros_msgs::msg::VfrHud::SharedPtr msg);
