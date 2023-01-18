@@ -216,7 +216,7 @@ void SmartGuidanceCom::WindCallback(const geometry_msgs::msg::TwistWithCovarianc
 
 void SmartGuidanceCom::AirspdFlapCallback(const soaring_interface::msg::AirspeedFlapsCommand::SharedPtr msg)
 {
-    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received new airspeed setpoint from Smart Guidance");
+    RCLCPP_INFO(node_logger_, "Received new airspeed setpoint from Smart Guidance");
     airspd_cmd_ = msg->v_ias;
     this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_CHANGE_SPEED, 0.0f, airspd_cmd_);
 }
@@ -225,12 +225,12 @@ void SmartGuidanceCom::AircraftConfigCallback(const soaring_interface::msg::Airc
 {
     if (msg->is_motor_enabled)
     {
-        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received Powered command from Smart Guidance");
+        RCLCPP_INFO(node_logger_, "Received Powered command from Smart Guidance");
         this->SetMavParameter("NAV_FW_GLIDE_EN", 0, 2);
     }
     else
     {
-        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received Gliding command from Smart Guidance");
+        RCLCPP_INFO(node_logger_, "Received Gliding command from Smart Guidance");
         this->SetMavParameter("NAV_FW_GLIDE_EN", 1, 2);
     }
 }
@@ -264,14 +264,14 @@ void SmartGuidanceCom::RcInCallback(const mavros_msgs::msg::RCIn::SharedPtr msg)
 
 void SmartGuidanceCom::WaypointReachedCallback(const mavros_msgs::msg::WaypointReached::SharedPtr msg)
 {
-    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Reached waypoint %i", msg->wp_seq);
+    RCLCPP_INFO(node_logger_, "Reached waypoint %i", msg->wp_seq);
 }
 
 void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Request> request,
                                           std::shared_ptr<soaring_interface::srv::UploadFlightPlan::Response> response)
 {
     num_waypoints_ = (int)request->flight_plan.n_waypoints;
-    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Received new flight plan from Smart Guidance with %i waypoints",
+    RCLCPP_INFO(node_logger_, "Received new flight plan from Smart Guidance with %i waypoints",
                 num_waypoints_);
     flight_path_waypoints_.clear();
 
@@ -284,17 +284,17 @@ void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interfac
         waypoint.x_lat = request->flight_plan.waypoints[i].position.latitude;
         waypoint.y_long = request->flight_plan.waypoints[i].position.longitude;
         waypoint.z_alt = request->flight_plan.waypoints[i].position.altitude;
-        if (i == num_waypoints_ - 1)
-        {
-            waypoint.command = mavros_msgs::msg::CommandCode::NAV_LOITER_UNLIM;
-            waypoint.param3 = request->flight_plan.waypoints[i].radius_orbit;
-        }
-        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Waypoint %i: Lat: %f, Lon: %f, Alt: %f",
+
+        RCLCPP_INFO(node_logger_, "Waypoint %i: Lat: %f, Lon: %f, Alt: %f",
                     i, waypoint.x_lat, waypoint.y_long, waypoint.z_alt);
+
         flight_path_waypoints_.push_back(waypoint);
     }
 
+    // Make sure the first waypoint is the current waypoint of the mission, and the last waypoint is a loiter waypoint.
     flight_path_waypoints_[0].is_current = 1;
+    flight_path_waypoints_[num_waypoints_ - 1].command = mavros_msgs::msg::CommandCode::NAV_LOITER_UNLIM;
+    flight_path_waypoints_[num_waypoints_ - 1].param3 = request->flight_plan.waypoints[num_waypoints_ - 1].radius_orbit;
 
     response->result = true;
     this->PushMavWaypoints(flight_path_waypoints_);
@@ -433,9 +433,9 @@ int main(int argc, char *argv[])
     rclcpp::executors::MultiThreadedExecutor executor;
     executor.add_node(smart_guidance_node);
 
-    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Starting Smart Guidance communication node...");
+    RCLCPP_INFO(rclcpp::get_logger("smart_guidance_node"), "Starting Smart Guidance communication node...");
     executor.spin();
-    RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Keyboard interrupt, shutting down...");
+    RCLCPP_INFO(rclcpp::get_logger("smart_guidance_node"), "Keyboard interrupt, shutting down...");
     rclcpp::shutdown();
     return 0;
 }

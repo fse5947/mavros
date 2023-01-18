@@ -101,6 +101,8 @@ private:
     SmartGuidanceMode get_SmartGuidanceState(uint16_t rc_switch);
     ThermallingMode get_ThermallingState(uint16_t rc_switch);
 
+    rclcpp::Logger node_logger_{rclcpp::get_logger("SmartGuidanceCom")};
+
     float indicated_airspeed_{0.0f};
     float airspd_cmd_{0.0f};
     float lat_{0.0f};
