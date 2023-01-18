@@ -6,6 +6,21 @@ mavros_node:
     fcu_url: udp://:14540@
     gcs_url: tcp-l://:5670
 
+mavros:
+  ros__parameters:
+    plugin_allowlist:
+      - sys_status
+      - sys_time
+      - vfr_hud
+      - global_position
+      - imu
+      - wind_estimation
+      - rc_io
+      - command
+      - waypoint
+      - param
+      - ftp
+
 mavros/odometry:
   ros__parameters:
     fcu:
