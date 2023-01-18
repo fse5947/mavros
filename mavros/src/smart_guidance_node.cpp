@@ -313,34 +313,7 @@ void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value
     cmdrq->value.integer_value = param_value;
     cmdrq->value.double_value = double(param_value);
 
-    while (!set_mav_param_client_->wait_for_service(std::chrono::seconds(1)))
-    {
-        if (!rclcpp::ok())
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("SmartGuidanceCom"), "Process Interrupted");
-            return;
-        }
-        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Service not Available");
-    }
-
-    auto result_future = set_mav_param_client_->async_send_request(cmdrq);
-
-    if (result_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready)
-    {
-        auto response = result_future.get();
-        if (response->success)
-        {
-            RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Set Param Response Successful");
-        }
-        else
-        {
-            RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Set Param Service Request Failed");
-        }
-    }
-    else
-    {
-        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Set Param Service Response not Ready");
-    }
+    HandleClientRequest(set_mav_param_client_, cmdrq, "Mav Set Param");
 }
 
 void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, float param2 = 0.0,
@@ -357,34 +330,7 @@ void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, f
     cmdrq->param6 = param6;
     cmdrq->param7 = param7;
 
-    while (!send_mav_command_client_->wait_for_service(std::chrono::seconds(1)))
-    {
-        if (!rclcpp::ok())
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("SmartGuidanceCom"), "Process Interrupted.");
-            return;
-        }
-        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Service not Available");
-    }
-
-    auto result_future = send_mav_command_client_->async_send_request(cmdrq);
-
-    if (result_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready)
-    {
-        auto response = result_future.get();
-        if (response->success)
-        {
-            RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Command Response Successful");
-        }
-        else
-        {
-            RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Command Service Request Failed");
-        }
-    }
-    else
-    {
-        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Mav Command Service Response not Ready");
-    }
+    HandleClientRequest(send_mav_command_client_, cmdrq, "Mav Command");
 }
 
 void SmartGuidanceCom::SendMavCommand(u_int16_t command_id)
@@ -408,33 +354,39 @@ void SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> 
 
     cmdrq->waypoints = flight_path;
 
-    while (!push_mav_waypoints_client_->wait_for_service(std::chrono::seconds(1)))
+    HandleClientRequest(push_mav_waypoints_client_, cmdrq, "Push Waypoints to Mav");
+}
+
+template <typename T1, typename T2>
+void SmartGuidanceCom::HandleClientRequest(T1 client_ptr, T2 request, std::string service_name)
+{
+    while (!client_ptr->wait_for_service(std::chrono::seconds(1)))
     {
         if (!rclcpp::ok())
         {
-            RCLCPP_ERROR(rclcpp::get_logger("SmartGuidanceCom"), "Process Interrupted.");
+            RCLCPP_ERROR(node_logger_, "Process Interrupted.");
             return;
         }
-        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Service not Available");
+        RCLCPP_INFO(node_logger_, "Service not Available");
     }
 
-    auto result_future = push_mav_waypoints_client_->async_send_request(cmdrq);
+    auto result_future = client_ptr->async_send_request(request);
 
     if (result_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready)
     {
         auto response = result_future.get();
         if (response->success)
         {
-            RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Push Waypoints to Mav Response Successful");
+            RCLCPP_INFO(node_logger_, service_name + " Response Successful");
         }
         else
         {
-            RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Push Waypoints to Mav Service Request Failed");
+            RCLCPP_INFO(node_logger_, service_name + " Service Request Failed");
         }
     }
     else
     {
-        RCLCPP_INFO(rclcpp::get_logger("SmartGuidanceCom"), "Push Waypoints to Mav Response not Ready");
+        RCLCPP_INFO(node_logger_, service_name + " Response not Ready");
     }
 }
 

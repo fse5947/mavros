@@ -82,6 +82,8 @@ private:
     void SendMavCommand(uint16_t, float param1);
     void SendMavCommand(uint16_t, float param1, float param2);
     void PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path);
+    template <typename T1, typename T2>
+    void HandleClientRequest(T1 client_ptr, T2 request, std::string service_name = "Service");
 
     void VfrHudCallback(const mavros_msgs::msg::VfrHud::SharedPtr msg);
     void GlobalPoseCallback(const sensor_msgs::msg::NavSatFix::SharedPtr msg);
