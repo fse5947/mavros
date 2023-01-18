@@ -16,4 +16,9 @@ def generate_launch_description():
              output='screen',
              emulate_tty=True,
              parameters=[mavros_params_file]),
+        Node(package='mavros',
+             executable='smart_guidance_node',
+             output='screen',
+             emulate_tty=True,
+             parameters=[{'timer_publish_rate': 100}])
     ])
