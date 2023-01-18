@@ -5,8 +5,8 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
     auto sensor_qos = rclcpp::SensorDataQoS();
     auto wp_qos = rclcpp::QoS(10).transient_local();
 
-    this->declare_parameter("timer_publish_rate", 100);
-    timer_publish_rate_ = this->get_parameter("timer_publish_rate").get_parameter_value().get<int>();
+    this->declare_parameter("aircraft_state_publish_rate", 100);
+    aircraft_state_publish_rate_ = this->get_parameter("aircraft_state_publish_rate").get_parameter_value().get<int>();
 
     aircraft_state_publisher_ =
         this->create_publisher<soaring_interface::msg::AircraftState>("/aircraft_state", 10);
@@ -80,7 +80,7 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
     timer_cb_group_ = nullptr;
 
     timer_ = this->create_wall_timer(
-        std::chrono::milliseconds(timer_publish_rate_), [this]()
+        std::chrono::milliseconds(aircraft_state_publish_rate_), [this]()
         { SmartGuidanceCom::TimerCallback(); },
         timer_cb_group_);
 }

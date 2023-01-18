@@ -119,7 +119,7 @@ private:
     float omega_y_{0.0f};
     float omega_z_{0.0f};
 
-    int timer_publish_rate_{100};
+    int aircraft_state_publish_rate_{100};
     int num_waypoints_{0};
     int previous_smart_guidance_state_{-1};
     int previous_thermalling_state_{-1};

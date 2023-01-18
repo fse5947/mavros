@@ -20,5 +20,5 @@ def generate_launch_description():
              executable='smart_guidance_node',
              output='screen',
              emulate_tty=True,
-             parameters=[{'timer_publish_rate': 100}])
+             parameters=[{'aircraft_state_publish_rate': 100}])
     ])
