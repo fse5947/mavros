@@ -35,9 +35,9 @@
 #include <soaring_interface/msg/wind_state.hpp>
 #include <soaring_interface/msg/airspeed_flaps_command.hpp>
 #include <soaring_interface/msg/aircraft_configuration.hpp>
-#include <soaring_interface/msg/ground_control_command.hpp>
 
 #include <soaring_interface/srv/upload_flight_plan.hpp>
+#include <soaring_interface/srv/ground_control_command.hpp>
 
 #include <soaring_interface/utils/soaring_modes.hpp>
 
@@ -50,7 +50,6 @@ private:
     rclcpp::TimerBase::SharedPtr timer_;
 
     rclcpp::Publisher<soaring_interface::msg::AircraftState>::SharedPtr aircraft_state_publisher_;
-    rclcpp::Publisher<soaring_interface::msg::GroundControlCommand>::SharedPtr ground_command_publisher_;
     rclcpp::Publisher<soaring_interface::msg::WindState>::SharedPtr wind_state_publisher_;
 
     rclcpp::Subscription<mavros_msgs::msg::VfrHud>::SharedPtr vfr_hud_sub_;
@@ -68,13 +67,14 @@ private:
     rclcpp::Client<mavros_msgs::srv::WaypointPush>::SharedPtr push_mav_waypoints_client_;
 
     rclcpp::Service<soaring_interface::srv::UploadFlightPlan>::SharedPtr flight_plan_service_;
+    rclcpp::Client<soaring_interface::srv::GroundControlCommand>::SharedPtr ground_control_client_;
 
     rclcpp::callback_group::CallbackGroup::SharedPtr service_cb_group_;
     rclcpp::callback_group::CallbackGroup::SharedPtr timer_cb_group_;
 
     void PublishAircraftState() const;
     void PublishWindState(float wind_north, float wind_east) const;
-    void PublishGroundCommand(uint8_t system_state, uint8_t thermalling_state) const;
+    void SendGroundCommand(uint8_t system_state, uint8_t thermalling_state);
     void SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type);
     void SendMavCommand(uint16_t command_id, float param1, float param2, float param3,
                         float param4, float param5, float param6, float param7);

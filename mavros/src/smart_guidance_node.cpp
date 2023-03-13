@@ -11,9 +11,6 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
     aircraft_state_publisher_ =
         this->create_publisher<soaring_interface::msg::AircraftState>("/aircraft_state", 10);
 
-    ground_command_publisher_ =
-        this->create_publisher<soaring_interface::msg::GroundControlCommand>("/ground_command", 10);
-
     wind_state_publisher_ =
         this->create_publisher<soaring_interface::msg::WindState>("/wind_state", 10);
 
@@ -70,6 +67,9 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
         { SmartGuidanceCom::FlightPlanCallback(request, response); },
         rmw_qos_profile_services_default, service_cb_group_);
 
+    ground_control_client_ = this->create_client<soaring_interface::srv::GroundControlCommand>("/ground_command", 
+                                                                                                rmw_qos_profile_services_default, service_cb_group_);
+
     set_mav_param_client_ = this->create_client<mavros_msgs::srv::ParamSetV2>("/mavros/param/set",
                                                                               rmw_qos_profile_services_default, service_cb_group_);
     send_mav_command_client_ = this->create_client<mavros_msgs::srv::CommandLong>("/mavros/cmd/command",
@@ -112,45 +112,6 @@ void SmartGuidanceCom::PublishAircraftState() const
     aircraft_state_publisher_->publish(msg);
 }
 
-void SmartGuidanceCom::PublishGroundCommand(uint8_t system_state, uint8_t thermalling_state) const
-{
-    soaring_interface::msg::GroundControlCommand gc_msg{};
-
-    switch (system_state)
-    {
-    case kSmartGuidanceModeDisabled:
-    {
-        gc_msg.system_state = kSystemDisabled;
-        break;
-    }
-    case kSmartGuidanceModeSafe:
-    {
-        gc_msg.system_state = kSystemSafe;
-        break;
-    }
-    case kSmartGuidanceModeActive:
-    {
-        gc_msg.system_state = kSystemEnabled;
-        break;
-    }
-    }
-
-    switch (thermalling_state)
-    {
-    case kThermallingDisabled:
-    {
-        gc_msg.latch_enable = kThermallingDisabled;
-        break;
-    }
-    case kThermallingEnabled:
-    {
-        gc_msg.latch_enable = kThermallingEnabled;
-        break;
-    }
-    }
-
-    ground_command_publisher_->publish(gc_msg);
-}
 
 void SmartGuidanceCom::PublishWindState(float wind_north, float wind_east) const
 {
@@ -256,7 +217,7 @@ void SmartGuidanceCom::RcInCallback(const mavros_msgs::msg::RCIn::SharedPtr msg)
         {
             this->SendMavCommand(mavros_msgs::msg::CommandCode::NAV_RETURN_TO_LAUNCH);
         }
-        PublishGroundCommand(smart_guidance_state, thermalling_state);
+        this->SendGroundCommand(smart_guidance_state, thermalling_state);
         previous_smart_guidance_state_ = smart_guidance_state;
         previous_thermalling_state_ = thermalling_state;
     }
@@ -303,6 +264,46 @@ void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interfac
 void SmartGuidanceCom::TimerCallback()
 {
     PublishAircraftState();
+}
+
+void SmartGuidanceCom::SendGroundCommand(uint8_t system_state, uint8_t thermalling_state)
+{
+    auto cmdrq = std::make_shared<soaring_interface::srv::GroundControlCommand_Request>();
+
+    switch (system_state)
+    {
+    case kSmartGuidanceModeDisabled:
+    {
+        cmdrq->system_state = kSystemDisabled;
+        break;
+    }
+    case kSmartGuidanceModeSafe:
+    {
+        cmdrq->system_state = kSystemSafe;
+        break;
+    }
+    case kSmartGuidanceModeActive:
+    {
+        cmdrq->system_state = kSystemEnabled;
+        break;
+    }
+    }
+
+    switch (thermalling_state)
+    {
+    case kThermallingDisabled:
+    {
+        cmdrq->latch_enable = kThermallingDisabled;
+        break;
+    }
+    case kThermallingEnabled:
+    {
+        cmdrq->latch_enable = kThermallingEnabled;
+        break;
+    }
+    }
+
+    HandleClientRequest(ground_control_client_, cmdrq, "Ground Control Command");
 }
 
 void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type)
