@@ -187,12 +187,12 @@ void SmartGuidanceCom::AircraftConfigCallback(const soaring_interface::msg::Airc
     if (msg->is_motor_enabled)
     {
         RCLCPP_INFO(node_logger_, "Received Powered command from Smart Guidance");
-        this->SetMavParameter("AA_GLIDE_EN", 0, 2);
+        this->SetMavParameter("AA_GLIDE_EN", (uint8_t)0, (uint8_t)2);
     }
     else
     {
         RCLCPP_INFO(node_logger_, "Received Gliding command from Smart Guidance");
-        this->SetMavParameter("AA_GLIDE_EN", 1, 2);
+        this->SetMavParameter("AA_GLIDE_EN", (uint8_t)1, (uint8_t)2);
     }
 }
 
@@ -209,9 +209,12 @@ void SmartGuidanceCom::RcInCallback(const mavros_msgs::msg::RCIn::SharedPtr msg)
         if (smart_guidance_state == kSmartGuidanceModeSafe || smart_guidance_state == kSmartGuidanceModeActive)
         {
             // Allows a mission to be uploaded without defining a landing waypoint
-            this->SetMavParameter("RTL_TYPE", 0, 2);
+            this->SetMavParameter("RTL_TYPE", (uint8_t)0, (uint8_t)2);
             // Change px4 mode to auto (mission)
             this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_SET_MODE, 4.0f);
+            // Make sure the aircraft can be set in glide mode
+            this->SetMavParameter("NAV_FW_GLIDE_MIN",25.0, 3);
+            this->SetMavParameter("NAV_FW_GLIDE_CLB", 50.0, 3);
         }
         else if (smart_guidance_state == kSmartGuidanceModeDisabled)
         {
@@ -312,7 +315,16 @@ void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value
     cmdrq->param_id = param_id;
     cmdrq->value.type = param_type;
     cmdrq->value.integer_value = param_value;
-    cmdrq->value.double_value = double(param_value);
+
+    HandleClientRequest(set_mav_param_client_, cmdrq, "Mav Set Param");
+}
+
+void SmartGuidanceCom::SetMavParameter(const char *param_id, double param_value, uint8_t param_type)
+{
+    auto cmdrq = std::make_shared<mavros_msgs::srv::ParamSetV2::Request>();
+    cmdrq->param_id = param_id;
+    cmdrq->value.type = param_type;
+    cmdrq->value.double_value = param_value;
 
     HandleClientRequest(set_mav_param_client_, cmdrq, "Mav Set Param");
 }

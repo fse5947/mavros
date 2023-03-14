@@ -76,6 +76,7 @@ private:
     void PublishWindState(float wind_north, float wind_east) const;
     void SendGroundCommand(uint8_t system_state, uint8_t thermalling_state);
     void SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type);
+    void SetMavParameter(const char *param_id, double param_value, uint8_t param_type);
     void SendMavCommand(uint16_t command_id, float param1, float param2, float param3,
                         float param4, float param5, float param6, float param7);
     void SendMavCommand(uint16_t);
