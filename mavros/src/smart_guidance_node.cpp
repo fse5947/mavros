@@ -187,12 +187,12 @@ void SmartGuidanceCom::AircraftConfigCallback(const soaring_interface::msg::Airc
     if (msg->is_motor_enabled)
     {
         RCLCPP_INFO(node_logger_, "Received Powered command from Smart Guidance");
-        this->SetMavParameter("NAV_FW_GLIDE_EN", 0, 2);
+        this->SetMavParameter("AA_GLIDE_EN", 0, 2);
     }
     else
     {
         RCLCPP_INFO(node_logger_, "Received Gliding command from Smart Guidance");
-        this->SetMavParameter("NAV_FW_GLIDE_EN", 1, 2);
+        this->SetMavParameter("AA_GLIDE_EN", 1, 2);
     }
 }
 
