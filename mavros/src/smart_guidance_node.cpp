@@ -67,7 +67,7 @@ SmartGuidanceCom::SmartGuidanceCom() : Node("smart_guidance_node")
         { SmartGuidanceCom::FlightPlanCallback(request, response); },
         rmw_qos_profile_services_default, service_cb_group_);
 
-    ground_control_client_ = this->create_client<soaring_interface::srv::GroundControlCommand>("/ground_command", 
+    ground_control_client_ = this->create_client<soaring_interface::srv::GroundControlCommand>("/ground_command",
                                                                                                 rmw_qos_profile_services_default, service_cb_group_);
 
     set_mav_param_client_ = this->create_client<mavros_msgs::srv::ParamSetV2>("/mavros/param/set",
@@ -177,23 +177,21 @@ void SmartGuidanceCom::WindCallback(const geometry_msgs::msg::TwistWithCovarianc
 
 void SmartGuidanceCom::AirspdFlapCallback(const soaring_interface::msg::AirspeedFlapsCommand::SharedPtr msg)
 {
-    RCLCPP_INFO(node_logger_, "Received new airspeed setpoint from Smart Guidance");
+    RCLCPP_DEBUG(node_logger_, "Received new airspeed setpoint from Smart Guidance");
     airspd_cmd_ = msg->v_ias;
-    this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_CHANGE_SPEED, 0.0f, airspd_cmd_);
+    this->SendMavCommand(mavros_msgs::msg::CommandCode::DO_CHANGE_SPEED, 0.0f, airspd_cmd_,-1.0);
 }
 
 void SmartGuidanceCom::AircraftConfigCallback(const soaring_interface::msg::AircraftConfiguration::SharedPtr msg)
 {
-    if (msg->is_motor_enabled)
-    {
-        RCLCPP_INFO(node_logger_, "Received Powered command from Smart Guidance");
-        this->SetMavParameter("AA_GLIDE_EN", (uint8_t)0, (uint8_t)2);
+    //TODO: Improve tracking of motor state, maybe throught tecs?
+    if (motor_state_ != msg->is_motor_enabled) {
+        if (this->SetMavParameter("AA_GLIDE_EN", (uint8_t)!msg->is_motor_enabled, (uint8_t)2)) {
+            RCLCPP_INFO(node_logger_, "Received %s command from Smart Guidance.", msg->is_motor_enabled? "POWER": "GLIDE");
+            motor_state_ = msg->is_motor_enabled;
+        }
     }
-    else
-    {
-        RCLCPP_INFO(node_logger_, "Received Gliding command from Smart Guidance");
-        this->SetMavParameter("AA_GLIDE_EN", (uint8_t)1, (uint8_t)2);
-    }
+
 }
 
 void SmartGuidanceCom::RcInCallback(const mavros_msgs::msg::RCIn::SharedPtr msg)
@@ -237,7 +235,7 @@ void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interfac
     num_waypoints_ = (int)request->flight_plan.n_waypoints;
     RCLCPP_INFO(node_logger_, "Received new flight plan from Smart Guidance with %i waypoints",
                 num_waypoints_);
-    flight_path_waypoints_.clear();
+    std::vector<mavros_msgs::msg::Waypoint> flight_path_waypoints;
 
     for (int i = 0; i < num_waypoints_; i++)
     {
@@ -252,16 +250,16 @@ void SmartGuidanceCom::FlightPlanCallback(const std::shared_ptr<soaring_interfac
         RCLCPP_INFO(node_logger_, "Waypoint %i: Lat: %f, Lon: %f, Alt: %f",
                     i, waypoint.x_lat, waypoint.y_long, waypoint.z_alt);
 
-        flight_path_waypoints_.push_back(waypoint);
+        flight_path_waypoints.push_back(waypoint);
     }
 
     // Make sure the first waypoint is the current waypoint of the mission, and the last waypoint is a loiter waypoint.
-    flight_path_waypoints_[0].is_current = 1;
-    flight_path_waypoints_[num_waypoints_ - 1].command = mavros_msgs::msg::CommandCode::NAV_LOITER_UNLIM;
-    flight_path_waypoints_[num_waypoints_ - 1].param3 = request->flight_plan.waypoints[num_waypoints_ - 1].radius_orbit;
+    flight_path_waypoints[0].is_current = 1;
+    flight_path_waypoints[num_waypoints_ - 1].command = mavros_msgs::msg::CommandCode::NAV_LOITER_UNLIM;
+    flight_path_waypoints[num_waypoints_ - 1].param3 = request->flight_plan.waypoints[num_waypoints_ - 1].radius_orbit;
 
     response->result = true;
-    this->PushMavWaypoints(flight_path_waypoints_);
+    this->PushMavWaypoints(flight_path_waypoints);
 }
 
 void SmartGuidanceCom::TimerCallback()
@@ -309,29 +307,29 @@ void SmartGuidanceCom::SendGroundCommand(uint8_t system_state, uint8_t thermalli
     HandleClientRequest(ground_control_client_, cmdrq, "Ground Control Command");
 }
 
-void SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type)
+bool SmartGuidanceCom::SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type)
 {
     auto cmdrq = std::make_shared<mavros_msgs::srv::ParamSetV2::Request>();
     cmdrq->param_id = param_id;
     cmdrq->value.type = param_type;
     cmdrq->value.integer_value = param_value;
 
-    HandleClientRequest(set_mav_param_client_, cmdrq, "Mav Set Param");
+    return HandleClientRequest(set_mav_param_client_, cmdrq, "Mav Set Param");
 }
 
-void SmartGuidanceCom::SetMavParameter(const char *param_id, double param_value, uint8_t param_type)
+bool SmartGuidanceCom::SetMavParameter(const char *param_id, double param_value, uint8_t param_type)
 {
     auto cmdrq = std::make_shared<mavros_msgs::srv::ParamSetV2::Request>();
     cmdrq->param_id = param_id;
     cmdrq->value.type = param_type;
     cmdrq->value.double_value = param_value;
 
-    HandleClientRequest(set_mav_param_client_, cmdrq, "Mav Set Param");
+    return HandleClientRequest(set_mav_param_client_, cmdrq, "Mav Set Param");
 }
 
-void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, float param2 = 0.0,
-                                      float param3 = 0.0, float param4 = 0.0, float param5 = 0.0,
-                                      float param6 = 0.0, float param7 = 0.0)
+bool SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1, float param2,
+                                      float param3, float param4, float param5,
+                                      float param6, float param7)
 {
     auto cmdrq = std::make_shared<mavros_msgs::srv::CommandLong::Request>();
     cmdrq->command = command_id;
@@ -343,64 +341,50 @@ void SmartGuidanceCom::SendMavCommand(uint16_t command_id, float param1 = 0.0, f
     cmdrq->param6 = param6;
     cmdrq->param7 = param7;
 
-    HandleClientRequest(send_mav_command_client_, cmdrq, "Mav Command");
+    return HandleClientRequest(send_mav_command_client_, cmdrq, "Mav Command");
 }
 
-void SmartGuidanceCom::SendMavCommand(u_int16_t command_id)
-{
-    SendMavCommand(command_id, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-}
-
-void SmartGuidanceCom::SendMavCommand(u_int16_t command_id, float param1)
-{
-    SendMavCommand(command_id, param1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-}
-
-void SmartGuidanceCom::SendMavCommand(u_int16_t command_id, float param1, float param2)
-{
-    SendMavCommand(command_id, param1, param2, 0.0, 0.0, 0.0, 0.0, 0.0);
-}
-
-void SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path)
+bool SmartGuidanceCom::PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path)
 {
     auto cmdrq = std::make_shared<mavros_msgs::srv::WaypointPush::Request>();
 
     cmdrq->waypoints = flight_path;
 
-    HandleClientRequest(push_mav_waypoints_client_, cmdrq, "Push Waypoints to Mav");
+    return HandleClientRequest(push_mav_waypoints_client_, cmdrq, "Push Waypoints to Mav");
 }
 
 template <typename T1, typename T2>
-void SmartGuidanceCom::HandleClientRequest(T1 client_ptr, T2 request, std::string service_name)
+bool SmartGuidanceCom::HandleClientRequest(T1 client_ptr, T2 request, std::string service_name)
 {
     while (!client_ptr->wait_for_service(std::chrono::seconds(1)))
     {
         if (!rclcpp::ok())
         {
             RCLCPP_ERROR(node_logger_, "Process Interrupted.");
-            return;
+            return false;
         }
-        RCLCPP_INFO(node_logger_, "Service not Available");
+        RCLCPP_WARN(node_logger_, "Service not Available");
     }
 
     auto result_future = client_ptr->async_send_request(request);
 
-    if (result_future.wait_for(std::chrono::seconds(1)) == std::future_status::ready)
+    if (result_future.wait_for(std::chrono::seconds(1)) != std::future_status::ready)
     {
-        auto response = result_future.get();
-        if (response->success)
-        {
-            RCLCPP_INFO(node_logger_, service_name + " Response Successful");
-        }
-        else
-        {
-            RCLCPP_INFO(node_logger_, service_name + " Service Request Failed");
-        }
+        RCLCPP_WARN(node_logger_, service_name + " Response not Ready");
+        return false;
     }
-    else
+
+    auto response = result_future.get();
+    if (response->success)
     {
-        RCLCPP_INFO(node_logger_, service_name + " Response not Ready");
+        RCLCPP_DEBUG(node_logger_, service_name + " Response Successful");
+        return true;
     }
+
+    RCLCPP_ERROR(node_logger_, service_name + " Service Request Failed");
+    return false;
+
+
 }
 
 SmartGuidanceMode SmartGuidanceCom::get_SmartGuidanceState(uint16_t rc_switch)

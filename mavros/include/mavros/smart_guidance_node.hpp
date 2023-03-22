@@ -75,16 +75,13 @@ private:
     void PublishAircraftState() const;
     void PublishWindState(float wind_north, float wind_east) const;
     void SendGroundCommand(uint8_t system_state, uint8_t thermalling_state);
-    void SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type);
-    void SetMavParameter(const char *param_id, double param_value, uint8_t param_type);
-    void SendMavCommand(uint16_t command_id, float param1, float param2, float param3,
-                        float param4, float param5, float param6, float param7);
-    void SendMavCommand(uint16_t);
-    void SendMavCommand(uint16_t, float param1);
-    void SendMavCommand(uint16_t, float param1, float param2);
-    void PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path);
+    bool SetMavParameter(const char *param_id, uint8_t param_value, uint8_t param_type);
+    bool SetMavParameter(const char *param_id, double param_value, uint8_t param_type);
+    bool SendMavCommand(uint16_t command_id, float param1 = 0.0, float param2 = 0.0, float param3 = 0.0,
+                        float param4 = 0.0, float param5 = 0.0, float param6 = 0.0, float param7 = 0.0);
+    bool PushMavWaypoints(std::vector<mavros_msgs::msg::Waypoint> flight_path);
     template <typename T1, typename T2>
-    void HandleClientRequest(T1 client_ptr, T2 request, std::string service_name = "Service");
+    bool HandleClientRequest(T1 client_ptr, T2 request, std::string service_name = "Service");
 
     void VfrHudCallback(const mavros_msgs::msg::VfrHud::SharedPtr msg);
     void GlobalPoseCallback(const sensor_msgs::msg::NavSatFix::SharedPtr msg);
@@ -103,6 +100,8 @@ private:
     ThermallingMode get_ThermallingState(uint16_t rc_switch);
 
     rclcpp::Logger node_logger_{rclcpp::get_logger("SmartGuidanceCom")};
+
+    bool motor_state_{false};
 
     float indicated_airspeed_{0.0f};
     float airspd_cmd_{0.0f};
@@ -127,8 +126,6 @@ private:
 
     std::vector<double> euler_{0.0, 0.0, 0.0};
     std::vector<double> omega_{0.0, 0.0, 0.0};
-
-    std::vector<mavros_msgs::msg::Waypoint> flight_path_waypoints_;
 
     tf2::Vector3 omega_FRD_{0, 0, 0};
     tf2::Vector3 accel_FRD_{0, 0, 0};
