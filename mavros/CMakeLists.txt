@@ -57,7 +57,6 @@ find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(trajectory_msgs REQUIRED)
-find_package(soaring_interface REQUIRED)
 
 include_directories(
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -185,23 +184,11 @@ pluginlib_export_plugin_description_file(mavros mavros_plugins.xml)
 add_executable(mavros_node src/mavros_node.cpp)
 target_link_libraries(mavros_node mavros)
 
-add_executable(smart_guidance_node src/smart_guidance_node.cpp ${CMAKE_CURRENT_SOURCE_DIR}/include/mavros/smart_guidance_node.hpp)
-ament_target_dependencies(smart_guidance_node soaring_interface rclcpp)
-target_include_directories(smart_guidance_node PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include/mavros)
-target_link_libraries(smart_guidance_node mavros)
-
 ament_python_install_package(${PROJECT_NAME})
 
 # NOTE(vooon): for some reason console_scripts do not work with ament_python!
 install(PROGRAMS scripts/mav
   DESTINATION lib/${PROJECT_NAME}
-)
-
-install(TARGETS mavros mavros_node smart_guidance_node mavros_plugins
-  EXPORT export_${PROJECT_NAME}
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 install(PROGRAMS scripts/install_geographiclib_datasets.sh
