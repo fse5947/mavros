@@ -191,6 +191,13 @@ install(PROGRAMS scripts/mav
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(TARGETS mavros mavros_node mavros_plugins
+  EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+
 install(PROGRAMS scripts/install_geographiclib_datasets.sh
   DESTINATION lib/${PROJECT_NAME}
 )
