@@ -21,7 +21,9 @@ public:
   explicit RawRPMPlugin(plugin::UASPtr uas_)
   : Plugin(uas_, "raw_rpm")
   {
-    rpm_pub = node->create_publisher<mavros_msgs::msg::RawRPM>("raw_rpm", 10);
+    auto sensor_qos = rclcpp::SensorDataQoS();
+    
+    rpm_pub = node->create_publisher<mavros_msgs::msg::RawRPM>("raw_rpm", sensor_qos);
   }
 
   Subscriptions get_subscriptions() override
@@ -43,12 +45,6 @@ private:
 
     vmsg.header.stamp = node->now();
     vmsg.frequency = raw_rpm.frequency;
-    // vmsg.airspeed = vfr_hud.airspeed;
-    // vmsg.groundspeed = vfr_hud.groundspeed;
-    // vmsg.heading = vfr_hud.heading;
-    // vmsg.throttle = vfr_hud.throttle / 100.0;   // comes in 0..100 range
-    // vmsg.altitude = vfr_hud.alt;
-    // vmsg.climb = vfr_hud.climb;
 
     rpm_pub->publish(vmsg);
   }
