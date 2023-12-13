@@ -2,6 +2,83 @@
 Changelog for package mavros_extras
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.6.0 (2023-09-09)
+------------------
+* switch to use tf2_eigen.hpp, but that drops support for EOL distros
+* ament uncrustify
+* cog: regenerate all
+* Merge branch 'master' into ros2
+  * master:
+  1.17.0
+  update changelog
+  cog: regenerate all
+  Bugfix/update map origin with home position (`#1892 <https://github.com/mavlink/mavros/issues/1892>`_)
+  mavros: Remove extra ';'
+  mavros_extras: Fix some init order warnings
+  Suppress warnings from included headers
+  1.16.0
+  update changelog
+  made it such that the gp_origin topic published latched.
+  use hpp instead of deprecated .h pluginlib headers
+* 1.17.0
+* update changelog
+* Merge pull request `#1889 <https://github.com/mavlink/mavros/issues/1889>`_ from MKargus0/feature/fix_landing_target_time_conversion
+  Fixed header.stamp conversion in landing target
+* fixed style
+* fixed header.stamp conversion in landing target
+* Merge pull request `#1871 <https://github.com/mavlink/mavros/issues/1871>`_ from Vladislavert/feature/optical_flow_msg
+  Addition of New OpticalFlow.msg
+* Added geometry_msgs/Vector3 to OpticalFlow.msg
+* Added vectors to the message OpticalFlow.msg
+* Added message optical flow
+* Merge pull request `#1865 <https://github.com/mavlink/mavros/issues/1865>`_ from scoutdi/warnings
+  Fix / suppress some build warnings
+* mavros_extras: Fix some init order warnings
+* Suppress warnings from included headers
+* 1.16.0
+* update changelog
+* Merge pull request `#1817 <https://github.com/mavlink/mavros/issues/1817>`_ from lucasw/pluginlib_hpp
+  use hpp instead of deprecated .h pluginlib headers
+* use hpp instead of deprecated .h pluginlib headers
+* Contributors: Lucas Walter, Mikhail Kolodochka, Morten Fyhn Amundsen, Vladimir Ermakov, Vladislavert
+
+2.5.0 (2023-05-05)
+------------------
+
+2.4.0 (2022-12-30)
+------------------
+* extras: uncrustify
+* extras: fix build, 2
+* extras: fix build
+* extras: fix cog
+* Merge branch 'master' into ros2
+  * master:
+  1.15.0
+  update changelog
+  ci: update actions
+  Implement debug float array handler
+  mavros_extras: Fix a sequence point warning
+  mavros_extras: Fix a comparison that shouldn't be bitwise
+  mavros: Fix some warnings
+  mavros_extras: Fix buggy check for lat/lon ignored
+  libmavconn: fix MAVLink v1.0 output selection
+* 1.15.0
+* update changelog
+* Merge pull request `#1811 <https://github.com/mavlink/mavros/issues/1811>`_ from scoutdi/debug-float-array
+  Implement debug float array handler
+* Implement debug float array handler
+  Co-authored-by: Morten Fyhn Amundsen <morten.f.amundsen@scoutdi.com>
+* Merge pull request `#1807 <https://github.com/mavlink/mavros/issues/1807>`_ from scoutdi/fix-bitwise-comparison
+  mavros_extras: Fix a comparison that shouldn't be bitwise
+* Merge pull request `#1808 <https://github.com/mavlink/mavros/issues/1808>`_ from scoutdi/fix-sequence-point-warning
+  mavros_extras: Fix a sequence point warning
+* mavros_extras: Fix a sequence point warning
+* mavros_extras: Fix a comparison that shouldn't be bitwise
+* Merge pull request `#1805 <https://github.com/mavlink/mavros/issues/1805>`_ from scoutdi/fix-latlon-check
+  mavros_extras: Fix buggy check for lat/lon ignored
+* mavros_extras: Fix buggy check for lat/lon ignored
+* Contributors: Morten Fyhn Amundsen, Sverre Velten Rothmund, Vladimir Ermakov
+
 2.3.0 (2022-09-24)
 ------------------
 * extras: fix linter errors
@@ -70,6 +147,38 @@ Changelog for package mavros_extras
 * Merge pull request `#1744 <https://github.com/mavlink/mavros/issues/1744>`_ from amilcarlucas/pr_gimbal_diagnostics_fixes
   mount_control.cpp: detect MOUNT_ORIENTATION stale messages
 * extras: fix cog re to extract plugin name
+
+1.17.0 (2023-09-09)
+-------------------
+* Merge pull request `#1865 <https://github.com/mavlink/mavros/issues/1865>`_ from scoutdi/warnings
+  Fix / suppress some build warnings
+* mavros_extras: Fix some init order warnings
+* Suppress warnings from included headers
+* Contributors: Morten Fyhn Amundsen, Vladimir Ermakov
+
+1.16.0 (2023-05-05)
+-------------------
+* Merge pull request `#1817 <https://github.com/mavlink/mavros/issues/1817>`_ from lucasw/pluginlib_hpp
+  use hpp instead of deprecated .h pluginlib headers
+* use hpp instead of deprecated .h pluginlib headers
+* Contributors: Lucas Walter, Vladimir Ermakov
+
+1.15.0 (2022-12-30)
+-------------------
+* Merge pull request `#1811 <https://github.com/mavlink/mavros/issues/1811>`_ from scoutdi/debug-float-array
+  Implement debug float array handler
+* Implement debug float array handler
+  Co-authored-by: Morten Fyhn Amundsen <morten.f.amundsen@scoutdi.com>
+* Merge pull request `#1807 <https://github.com/mavlink/mavros/issues/1807>`_ from scoutdi/fix-bitwise-comparison
+  mavros_extras: Fix a comparison that shouldn't be bitwise
+* Merge pull request `#1808 <https://github.com/mavlink/mavros/issues/1808>`_ from scoutdi/fix-sequence-point-warning
+  mavros_extras: Fix a sequence point warning
+* mavros_extras: Fix a sequence point warning
+* mavros_extras: Fix a comparison that shouldn't be bitwise
+* Merge pull request `#1805 <https://github.com/mavlink/mavros/issues/1805>`_ from scoutdi/fix-latlon-check
+  mavros_extras: Fix buggy check for lat/lon ignored
+* mavros_extras: Fix buggy check for lat/lon ignored
+* Contributors: Morten Fyhn Amundsen, Sverre Velten Rothmund, Vladimir Ermakov
 
 1.14.0 (2022-09-24)
 -------------------

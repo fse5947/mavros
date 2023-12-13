@@ -14,12 +14,11 @@
  * @{
  */
 
-#include <tf2_eigen/tf2_eigen.h>
-
 #include <string>
 
 #include <GeographicLib/Geocentric.hpp>
 
+#include "tf2_eigen/tf2_eigen.hpp"
 #include "rcpputils/asserts.hpp"
 #include "mavros/mavros_uas.hpp"
 #include "mavros/plugin.hpp"
@@ -68,7 +67,7 @@ public:
 
     // Subscriber for global origin (aka map origin).
     gp_origin_sub = node->create_subscription<geographic_msgs::msg::GeoPointStamped>(
-      "global_position/gp_origin", 10, std::bind(&GuidedTargetPlugin::gp_origin_cb, this, _1));
+      "global_position/gp_origin", rclcpp::SensorDataQoS(), std::bind(&GuidedTargetPlugin::gp_origin_cb, this, _1));
   }
 
   Subscriptions get_subscriptions() override
@@ -85,7 +84,6 @@ private:
   rclcpp::Subscription<geographic_msgs::msg::GeoPointStamped>::SharedPtr gp_origin_sub;
 
   Eigen::Vector3d current_gps;          //!< geodetic coordinates LLA
-  Eigen::Vector3d current_local_pos;    //!< Current local position in ENU
 
   Eigen::Vector3d map_origin {};        //!< oigin of map frame [lla]
   Eigen::Vector3d ecef_origin {};       //!< geocentric origin [m]

@@ -69,6 +69,7 @@ set(msg_files
   msg/MountControl.msg
   msg/NavControllerOutput.msg
   msg/OnboardComputerStatus.msg
+  msg/OpticalFlow.msg
   msg/OpticalFlowRad.msg
   msg/OverrideRCIn.msg
   msg/Param.msg
@@ -82,6 +83,7 @@ set(msg_files
   msg/RTKBaseline.msg
   msg/RadioStatus.msg
   msg/State.msg
+  msg/StatusEvent.msg
   msg/StatusText.msg
   msg/TerrainReport.msg
   msg/Thrust.msg
@@ -109,6 +111,7 @@ set(srv_files
   srv/CommandInt.srv
   srv/CommandLong.srv
   srv/CommandTOL.srv
+  srv/CommandTOLLocal.srv
   srv/CommandTriggerControl.srv
   srv/CommandTriggerInterval.srv
   srv/CommandVtolTransition.srv
@@ -143,7 +146,7 @@ set(srv_files
   srv/WaypointPull.srv
   srv/WaypointPush.srv
   srv/WaypointSetCurrent.srv
-  # [[[end]]] (checksum: a011691dec330a2a89d35288ebf05c55)
+  # [[[end]]] (checksum: def9cd208ca118971750a304b784d92a)
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}
