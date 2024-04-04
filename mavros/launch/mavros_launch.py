@@ -6,9 +6,8 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
 
-    mavros_params_file = os.path.join(
-        get_package_share_directory('mavros'), 'config',
-        'mavros_params.yaml')
+    mavros_params_file = os.path.join(get_package_share_directory('mavros'),
+                                      'config', 'mavros_params.yaml')
 
     return LaunchDescription([
         Node(package='mavros',
@@ -16,9 +15,4 @@ def generate_launch_description():
              output='screen',
              emulate_tty=True,
              parameters=[mavros_params_file]),
-        Node(package='mavros',
-             executable='smart_guidance_node',
-             output='screen',
-             emulate_tty=True,
-             parameters=[{'aircraft_state_publish_rate': 100}])
     ])
