@@ -124,6 +124,7 @@ add_library(mavros_extras_plugins SHARED
   src/plugins/vision_speed_estimate.cpp
   src/plugins/wheel_odometry.cpp
   src/plugins/raw_rpm.cpp
+  src/plugins/rpm.cpp
   # [[[end]]] (checksum: a6dc36e6871deb96f56d61e2a1a38f37)
 )
 ament_target_dependencies(mavros_extras_plugins

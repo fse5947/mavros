@@ -209,6 +209,10 @@ send back to the FCU a corrected path (collision free, smoothed)
     <description>@brief Raw RPM plugin.
 @plugin raw_rpm</description>
   </class>
+  <class name="rpm" type="mavros::plugin::PluginFactoryTemplate&lt;mavros::extra_plugins::RPMPlugin&gt;" base_class_type="mavros::plugin::PluginFactory">
+    <description>@brief RPM plugin.
+@plugin rpm</description>
+  </class>
   <class name="vibration" type="mavros::plugin::PluginFactoryTemplate&lt;mavros::extra_plugins::VibrationPlugin&gt;" base_class_type="mavros::plugin::PluginFactory">
     <description>@brief Vibration plugin
 @plugin vibration

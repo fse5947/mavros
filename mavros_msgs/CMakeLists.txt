@@ -98,6 +98,7 @@ set(msg_files
   msg/WaypointReached.msg
   msg/WheelOdomStamped.msg
   msg/RawRPM.msg
+  msg/RPM.msg
   # [[[end]]] (checksum: cf55cc727ab8f7a2823267cab0dd1bf3)
 )
 

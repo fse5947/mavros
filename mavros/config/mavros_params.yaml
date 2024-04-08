@@ -21,6 +21,7 @@ mavros:
       - waypoint
       - param
       - ftp
+      - rpm
 
 mavros/odometry:
   ros__parameters:
